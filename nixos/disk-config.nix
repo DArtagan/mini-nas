@@ -254,6 +254,7 @@
               {
                 mode = "raidz1";
                 members = [
+                  # TODO: use /dev/disk/by-id/... when we're deal with physical (not virtual) disks
                   #"/dev/disk/by-partuuid/52da0ec8-4a8e-499c-9e90-ee23819960c6"
                   #"/dev/disk/by-partuuid/016d17e0-729b-46b5-8cc7-67f77f969c6b"
                   #"/dev/disk/by-partuuid/c22a58ab-38ca-4787-9551-7b571ed20d54"
