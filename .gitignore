@@ -1,11 +1,8 @@
-# Devenv
 .devenv*
-devenv.local.nix
-
-# direnv
 .direnv
-
-# pre-commit
 .pre-commit-config.yaml
-
-bootable_usb/result/
+bootable_image/result/
+devenv.local.nix
+nixos/.terraform/*
+nixos/.terraform.tfstate.*
+nixos/terraform.tfstate*

@@ -12,6 +12,9 @@
           + "/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix")
         (nixpkgs + "/nixos/modules/installer/cd-dvd/channel.nix")
         ({ pkgs, ... }: {
+          environment.systemPackages = with pkgs; map lib.lowPrio [
+            nixos-facter
+          ];
           # Enable SSH in the boot process.
           systemd.services.sshd.wantedBy = pkgs.lib.mkForce [ "multi-user.target" ];
           users.users.root.openssh.authorizedKeys.keys = [
