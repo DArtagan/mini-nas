@@ -14,12 +14,24 @@
 
   boot.zfs.devNodes = "/dev/disk/by-uuid";
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix = {
+    # TODO: put the nix store in a separate zfs dataset
+    gc = {
+      automatic = true;
+      dates = "weekly";
+      options = "--delete-older-than 365d";
+    };
+    settings = {
+      auto-optimise-store = true;
+      experimental-features = [ "nix-command" "flakes" ];
+    };
+  };
 
   environment.variables.EDITOR = "vim";
   environment.systemPackages = with pkgs; map lib.lowPrio [
     gitMinimal  # Flakes clones its dependencies through the git command, so git must be installed first
     curl
+    tmux
     vim
     wget
   ];
@@ -59,4 +71,6 @@
   };
 
   system.stateVersion = "25.05";
+
+  time.timeZone = "America/New_York";
 }
