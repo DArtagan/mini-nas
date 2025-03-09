@@ -1,8 +1,8 @@
 .devenv*
 .direnv
 .pre-commit-config.yaml
-bootable_image/result/
+bootable_image/result
 devenv.local.nix
-nixos/.terraform/*
-nixos/.terraform.tfstate.*
-nixos/terraform.tfstate*
+.terraform/*
+.terraform.tfstate.*
+terraform.tfstate*
