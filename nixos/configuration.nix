@@ -2,17 +2,27 @@
 
 {
   imports = [
-    #./hardware-configuration.nix  # Include the results of the hardware scan.
     #(modulesPath + "/profiles/qemu-guest.nix")
     ./disk-config.nix
   ];
 
-  boot.loader.grub = {
-    efiSupport = true;
-    efiInstallAsRemovable = true;
+  boot = {
+    kernelModules = [
+      "coretemp"
+      "nct6775"
+    ];
+
+    loader.grub = {
+      efiSupport = true;
+      efiInstallAsRemovable = true;
+    };
+
+    zfs.devNodes = "/dev/disk/by-uuid";
   };
 
-  boot.zfs.devNodes = "/dev/disk/by-uuid";
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+    "broadcom-sta"
+  ];
 
   nix = {
     # TODO: put the nix store in a separate zfs dataset
@@ -31,6 +41,8 @@
   environment.systemPackages = with pkgs; map lib.lowPrio [
     gitMinimal  # Flakes clones its dependencies through the git command, so git must be installed first
     curl
+    hddfancontrol
+    lm_sensors
     tmux
     vim
     wget
@@ -41,7 +53,7 @@
     interfaces = {
       eth0 = {
         ipv4.addresses = [{
-          address = "192.168.122.37";
+          address = "192.168.1.10";
           prefixLength = 24;
         }];
       };
@@ -56,13 +68,36 @@
     };
   };
 
-  services.openssh = {
-    enable = true;
-    settings = {
-      #PermitRootLogin = "no"; # disable root login
-      PasswordAuthentication = false; # disable password login, require keys
+  services = {
+    hddfancontrol = {
+      enable = true;
+      disks = [
+        "/dev/disk/by-id/ata-Hitachi_HDS723030ALA640_MK0331YHG5Y9WA"
+        "/dev/disk/by-id/ata-ST3000DM001-1CH166_Z1F48TA8"
+        "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2RP"
+        "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2SR"
+        "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY8DP80"
+        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX7YAS"
+        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX8BAS"
+        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA300_Z2L4RUPGS"
+      ];
+      pwmPaths = [
+        "/sys/devices/platform/nct6775.656/hwmon/hwmon1/pwm3:90:85"
+      ];
+      extraArgs = [
+        "--min-fan-speed-prct=0"
+        "--interval=1min"
+        "--drive-temp-range" "40" "50"
+      ];
     };
-    openFirewall = true;
+    openssh = {
+      enable = true;
+      settings = {
+        #PermitRootLogin = "no"; # disable root login
+        PasswordAuthentication = false; # disable password login, require keys
+      };
+      openFirewall = true;
+    };
   };
 
   system.autoUpgrade = {

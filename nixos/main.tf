@@ -1,5 +1,5 @@
 locals {
-  ipv4 = "192.168.122.37"  # Keep aligned with what's in configuration.nix for at least initial set-up.
+  ipv4 = "192.168.1.10"  # Keep aligned with what's in configuration.nix for at least initial set-up.
 }
 
 module "deploy" {

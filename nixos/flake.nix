@@ -18,7 +18,7 @@
           ({ pkgs, lib, ... }: {
             services.proxmox-ve = {
               enable = true;
-              ipAddress = "192.168.122.38";
+              ipAddress = "192.168.:.10";  # TODO: fetch this from elsewhere
             };
 
             nixpkgs.overlays = [
