@@ -99,6 +99,15 @@
       };
       openFirewall = true;
     };
+    tailscale = {
+      enable = true;
+      #openFirewall = true;
+      #authKeyFile = config....;
+      extraUpFlags = [
+        "--login-server=https://tailscale.immortalkeep.com/auth"
+        #"--accept-dns=false"
+      ];
+    };
   };
 
   system.autoUpgrade = {

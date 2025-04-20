@@ -15,5 +15,4 @@ Configuration for mini-ITX server
 
 Manage the Nixos configuration remotely by:
 1. `cd nixos`
-2. `nixos-rebuild switch --flake .#mini-nas --target-host "root@192.168.122.37"
-`
+2. `nixos-rebuild switch --flake .#mini-nas --target-host "root@192.168.122.37"`

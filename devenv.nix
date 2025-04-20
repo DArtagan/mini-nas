@@ -6,9 +6,11 @@
 
   # https://devenv.sh/packages/
   packages = [
+    pkgs.age
     pkgs.git
     pkgs.opentofu
     pkgs.nixos-anywhere
+    pkgs.sops
   ];
 
 
