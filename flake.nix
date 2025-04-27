@@ -3,7 +3,8 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
+    #proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
+    proxmox-nixos.url = "github:codgician/proxmox-nixos?ref=pve-edk2-firmware-workaround";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
