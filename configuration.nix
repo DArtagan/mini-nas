@@ -14,6 +14,7 @@
 
     # Declare the secrets here
     secrets.hello = {};
+    secrets.tailscale-pre-auth-key = {};
     #secrets."myservice/my_subdir/my_secret" = {};
   };
 
@@ -117,7 +118,7 @@
     tailscale = {
       enable = true;
       #openFirewall = true;
-      #authKeyFile = config....;
+      authKeyFile = config.sops.secrets.tailscale-pre-auth-key.path;
       extraUpFlags = [
         "--login-server=https://tailscale.immortalkeep.com/auth"
         #"--accept-dns=false"

@@ -1,10 +1,12 @@
 keys:
   - &manjaro_will age1g4nm9uphc70e30zluas6hghdpcl76gr8nluhnuq680clv2g8vgts3cke0z
+  - &mini-nas age19k2kw5tqyp533sv0y34hsclqqhps2l0fh6nuedsuzuqt9a7g4p0s0vzgtx
 creation_rules:
   - path_regex: secrets.yaml
     key_groups:
     - age: 
         - *manjaro_will
+        - *mini-nas
       #pgp:
       #  - *other_person
 

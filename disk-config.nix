@@ -125,7 +125,7 @@
       };
       data5 = {
         type = "disk";
-        device = "/dev/disk/by-id/ata-Hitachi_HDS723030ALA640_MK0331YHG5Y9WA";
+        device = "/dev/disk/by-id/ata-Hitachi_HDS723030ALA640_MK0331YHG5Y9WA";  # Gone bad
         content = {
           type = "gpt";
           partitions = {
