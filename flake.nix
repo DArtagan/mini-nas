@@ -3,14 +3,17 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    #proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
-    proxmox-nixos.url = "github:codgician/proxmox-nixos?ref=pve-edk2-firmware-workaround";
+    proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, disko, nixos-facter-modules, proxmox-nixos, ...}: {
+  outputs = { self, nixpkgs, disko, nixos-facter-modules, proxmox-nixos, sops-nix, ...}: {
     nixosConfigurations = {
       mini-nas = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
@@ -28,7 +31,7 @@
           })
           disko.nixosModules.disko
           ./configuration.nix
-          #./hardware-configuration.nix
+          sops-nix.nixosModules.sops
           nixos-facter-modules.nixosModules.facter
           {
             config.facter.reportPath =

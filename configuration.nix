@@ -6,6 +6,17 @@
     ./disk-config.nix
   ];
 
+  sops = {
+    defaultSopsFile = ./secrets.yaml;
+    #age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    #age.keyFile = "/var/lib/sops-nix/key.txt";
+    #age.generateKey = true;
+
+    # Declare the secrets here
+    secrets.hello = {};
+    #secrets."myservice/my_subdir/my_secret" = {};
+  };
+
   boot = {
     kernelModules = [
       "coretemp"
@@ -72,24 +83,28 @@
   services = {
     hddfancontrol = {
       enable = true;
-      disks = [
-        "/dev/disk/by-id/ata-Hitachi_HDS723030ALA640_MK0331YHG5Y9WA"
-        "/dev/disk/by-id/ata-ST3000DM001-1CH166_Z1F48TA8"
-        "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2RP"
-        "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2SR"
-        "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY8DP80"
-        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX7YAS"
-        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX8BAS"
-        "/dev/disk/by-id/ata-TOSHIBA_DT01ACA300_Z2L4RUPGS"
-      ];
-      pwmPaths = [
-        "/sys/devices/platform/nct6775.656/hwmon/hwmon1/pwm3:90:85"
-      ];
-      extraArgs = [
-        "--min-fan-speed-prct=0"
-        "--interval=1min"
-        "--drive-temp-range" "40" "50"
-      ];
+      settings = {
+        harddrives = {
+          disks = [
+            "/dev/disk/by-id/ata-Hitachi_HDS723030ALA640_MK0331YHG5Y9WA"
+            "/dev/disk/by-id/ata-ST3000DM001-1CH166_Z1F48TA8"
+            "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2RP"
+            "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2SR"
+            "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY8DP80"
+            "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX7YAS"
+            "/dev/disk/by-id/ata-TOSHIBA_DT01ACA200_67CVX8BAS"
+            "/dev/disk/by-id/ata-TOSHIBA_DT01ACA300_Z2L4RUPGS"
+          ];
+          pwmPaths = [
+            "/sys/devices/platform/nct6775.656/hwmon/hwmon1/pwm3:90:85"
+          ];
+          extraArgs = [
+            "--min-fan-speed-prct=0"
+            "--interval=1min"
+            "--drive-temp-range" "40" "50"
+          ];
+        };
+      };
     };
     openssh = {
       enable = true;

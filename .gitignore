@@ -3,6 +3,7 @@
 .pre-commit-config.yaml
 bootable_image/result
 devenv.local.nix
-.terraform/*
+result
+.terraform/
 .terraform.tfstate.*
 terraform.tfstate*
