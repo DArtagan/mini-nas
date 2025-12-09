@@ -1,4 +1,5 @@
 terraform {
+  required_version = ">= 1.10.0"
   required_providers {
     proxmox = {
       source = "bpg/proxmox"
@@ -9,25 +10,6 @@ terraform {
       version = "1.1.1"
     }
   }
-}
-
-locals {
-  ipv4 = "192.168.1.10"  # Keep aligned with what's in configuration.nix for at least initial set-up.
-}
-
-module "deploy" {
-  source = "github.com/nix-community/nixos-anywhere//terraform/all-in-one"
-
-  # when instance id changes, it will trigger a reinstall
-  instance_id = "mini-nas"
-
-  nixos_system_attr = ".#nixosConfigurations.mini-nas.config.system.build.toplevel"
-  nixos_partitioner_attr = ".#nixosConfigurations.mini-nas.config.system.build.diskoScript"
-  nixos_facter_path = "./facter.json"
-
-  target_host = local.ipv4
-
-  #debug_logging = true  # useful if something goes wrong
 }
 
 #variable "proxmox_api_token_id" {
@@ -70,7 +52,7 @@ data "sops_file" "tofu_secrets" {
 }
 
 provider "proxmox" {
-  endpoint = "https://192.168.1.10:8006/"
+  endpoint = "https://192.168.1.11:8006/"
   api_token = data.sops_file.tofu_secrets.data["proxmox_api_token"]
   insecure = true
 }
