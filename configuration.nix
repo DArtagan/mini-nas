@@ -8,6 +8,7 @@
   imports = [
     ./disk-config.nix
     ./proxmox.nix
+    ./modules/tailscale
   ];
 
   #sops = {
@@ -18,7 +19,6 @@
 
   #  # Declare the secrets here
   #  secrets.hello = {};
-  #  secrets.tailscale-pre-auth-key = {};
   #  #secrets."myservice/my_subdir/my_secret" = {};
   #};
 
@@ -150,15 +150,6 @@
       };
       openFirewall = true;
     };
-    #tailscale = {
-    #  enable = true;
-    #  #openFirewall = true;
-    #  authKeyFile = config.sops.secrets.tailscale-pre-auth-key.path;
-    #  extraUpFlags = [
-    #    "--login-server=https://tailscale.immortalkeep.com/auth"
-    #    #"--accept-dns=false"
-    #  ];
-    #};
   };
 
   system.autoUpgrade = {
