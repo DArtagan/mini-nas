@@ -1,4 +1,5 @@
 {
+  config,
   lib,
   pkgs,
   ...
@@ -11,16 +12,32 @@
     ./modules/tailscale
   ];
 
-  #sops = {
-  #  defaultSopsFile = ./secrets.yaml;
-  #  #age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-  #  #age.keyFile = "/var/lib/sops-nix/key.txt";
-  #  #age.generateKey = true;
-
-  #  # Declare the secrets here
-  #  secrets.hello = {};
-  #  #secrets."myservice/my_subdir/my_secret" = {};
-  #};
+  sops =
+    let
+      host_ssh_private_key = "/etc/ssh/ssh_host_ed25519_key";
+      user_ssh_private_key = "/root/.ssh/id_ed25519";
+    in
+    {
+      defaultSopsFile = ./secrets.yaml;
+      age.sshKeyPaths = [ host_ssh_private_key ];
+      environment.SOPS_AGE_SSH_PRIVATE_KEY_FILE = host_ssh_private_key;
+      secrets = {
+        "users/root/ssh_private_key" = {
+          owner = "root";
+          mode = "600";
+          path = user_ssh_private_key;
+        };
+        "users/root/ssh_public_key" = {
+          owner = "root";
+          mode = "644";
+          path = user_ssh_private_key + ".pub";
+        };
+        "users/syncoid/ssh_private_key" = {
+          owner = config.services.syncoid.user;
+          mode = "600";
+        };
+      };
+    };
 
   boot = {
     kernelModules = [
@@ -66,6 +83,15 @@
     zfs.devNodes = "/dev/";
   };
 
+  fileSystems = {
+    # Note: zfs datasets must be manually created on the server, and then added here for proper mounting
+    "/rpool/foreign-backups/vulcanus" = {
+      device = "rpool/foreign-backups/vulcanus";
+      fsType = "zfs";
+      options = [ "zfsutil" ];
+    };
+  };
+
   nixpkgs.config.allowUnfreePredicate =
     pkg:
     builtins.elem (lib.getName pkg) [
@@ -92,6 +118,7 @@
     with pkgs;
     map lib.lowPrio [
       gitMinimal # Flakes clones its dependencies through the git command, so git must be installed first
+      bottom # resource monitoring, alternative to top
       curl
       hddfancontrol
       lm_sensors
@@ -104,13 +131,27 @@
     hostId = lib.mkDefault "c25481ef";
   };
 
-  users.users = {
-    root = {
-      openssh.authorizedKeys.keys = [
-        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFmUpFV6Aa7SrDryunARrpcOM3spgYwRZQantYB6gPYZ will@thebeastmanjaro"
-        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKYSwODOrerKkBNuitwqjNioFXLDRBKqSJTayFoo1Ude willy@steamdeck"
-        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIyPkfTI0io9dZsJstcf29tddyrsHr9bnM8UXKtaVJwm will@thenixbeast"
-      ];
+  users = {
+    groups = {
+      foreign-backups = { };
+    };
+    users = {
+      root = {
+        openssh.authorizedKeys.keys = [
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFmUpFV6Aa7SrDryunARrpcOM3spgYwRZQantYB6gPYZ will@thebeastmanjaro"
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKYSwODOrerKkBNuitwqjNioFXLDRBKqSJTayFoo1Ude willy@steamdeck"
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIyPkfTI0io9dZsJstcf29tddyrsHr9bnM8UXKtaVJwm will@thenixbeast"
+        ];
+      };
+      vulcanus = {
+        group = "foreign-backups";
+        isSystemUser = true;
+        openssh.authorizedKeys.keys = [
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfQd/8CMIOVcawUS3AvgUnT+f3cL2wJtmON8pILcwwz root@vulcanus"
+        ];
+        # TODO: lock this down further using something like: https://discourse.nixos.org/t/wrapper-to-restrict-builder-access-through-ssh-worth-upstreaming/25834/17
+        useDefaultShell = true;
+      };
     };
   };
 
@@ -144,11 +185,44 @@
     };
     openssh = {
       enable = true;
+      knownHosts = {
+        "vulcanus.forge.local".publicKey =
+          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIfwKbvNbbcYURG80TdzbFn9vdUFNMpnUoE67ExARElv";
+      };
       settings = {
         #PermitRootLogin = "no"; # disable root login
         PasswordAuthentication = false; # disable password login, require keys
       };
       openFirewall = true;
+    };
+    sanoid.enable = true;
+    syncoid = {
+      enable = true;
+      commonArgs = [
+        "--no-sync-snap"
+        "--no-privilege-elevation"
+      ];
+      sshKey = config.sops.secrets."users/syncoid/ssh_private_key".path;
+      commands = {
+        # TODO: move to using `--exclude-datasets`
+        # TODO: use compression? `--compress` ... or no because it's already compressed on disk
+        # TODO: should I turn on `--use-hold`?  Kinda seems like it's already on
+        vulcanus-storage = {
+          recursive = true;
+          source = "mini-nas@vulcanus.forge.local:rpool/storage";
+          target = "rpool/foreign-backups/vulcanus/storage";
+        };
+        vulcanus-root = {
+          recursive = true;
+          source = "mini-nas@vulcanus.forge.local:rpool/ROOT";
+          target = "rpool/foreign-backups/vulcanus/ROOT";
+        };
+        vulcanus-data = {
+          recursive = true;
+          source = "mini-nas@vulcanus.forge.local:rpool/data";
+          target = "rpool/foreign-backups/vulcanus/data";
+        };
+      };
     };
   };
 
