@@ -3,12 +3,16 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     disko = {
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
+    proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -19,16 +23,19 @@
     {
       self,
       nixpkgs,
+      deploy-rs,
       disko,
       nixos-facter-modules,
       proxmox-nixos,
       sops-nix,
       ...
     }:
+    let
+      system = "x86_64-linux";
+    in
     {
       nixosConfigurations = {
         mini-nas = nixpkgs.lib.nixosSystem rec {
-          system = "x86_64-linux";
           modules = [
             disko.nixosModules.disko
             nixos-facter-modules.nixosModules.facter
@@ -58,5 +65,15 @@
           ];
         };
       };
+
+      deploy.nodes.mini-nas = {
+        hostname = "mini-nas.forge.local";
+        profiles.system = {
+          sshUser = "root";
+          path = deploy-rs.lib.${system}.activate.nixos self.nixosConfigurations.mini-nas;
+        };
+      };
+
+      checks = builtins.mapAttrs (_: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
     };
 }
