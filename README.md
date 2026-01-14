@@ -17,3 +17,12 @@ Configuration for mini-ITX server
 Manage the Nixos configuration remotely by:
 1. `cd nixos`
 2. `nh os switch .#nixosConfigurations.mini-nas --target-host "root@192.168.1.11"`
+
+# Attic Nix binary cache
+
+## Grant access
+
+From a mini-nas console run something like (changing all the settings accordingly):
+```
+atticd-atticadm make-token --sub "thenixbeast" --validity "99y" --pull "public" --push "public" --create-cache "thenixbeast-*" --push "thenixbeast-*" --pull "thenixbeast-*" --create-cache "public" --configure-cache "public" --configure-cache "thenixbeast-*" --configure-cache-retention "public" --configure-cache-retention "thenixbeast-*" --destroy-cache "thenixbeast-*"
+```

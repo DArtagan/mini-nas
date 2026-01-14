@@ -9,6 +9,8 @@
   imports = [
     ./disk-config.nix
     ./proxmox.nix
+    ./modules/attic
+    ./modules/distributed_builders
     ./modules/tailscale
   ];
 
@@ -24,27 +26,22 @@
       secrets = {
         "users/root/ssh_private_key" = {
           owner = "root";
-          mode = "600";
+          mode = "400";
           path = user_ssh_private_key;
         };
         "users/root/ssh_public_key" = {
           owner = "root";
-          mode = "644";
+          mode = "444";
           path = user_ssh_private_key + ".pub";
         };
         "users/syncoid/ssh_private_key" = {
           owner = config.services.syncoid.user;
-          mode = "600";
+          mode = "400";
         };
       };
     };
 
   boot = {
-    kernelModules = [
-      "coretemp"
-      "nct6775"
-    ];
-
     loader = {
       efi.canTouchEfiVariables = true;
       grub = {
@@ -78,6 +75,12 @@
       timeout = 20;
     };
 
+    kernelModules = [
+      "coretemp"
+      "nct6775"
+    ];
+    kernelParams = [ "zfs.zfs_arc_max=6442450944" ];
+
     supportedFilesystems = [ "zfs" ];
     tmp.useTmpfs = true;
     zfs.devNodes = "/dev/";
@@ -104,11 +107,19 @@
       dates = "weekly";
       options = "--delete-older-than 365d";
     };
+
     settings = {
       auto-optimise-store = true;
       experimental-features = [
         "nix-command"
         "flakes"
+      ];
+
+      substituters = [
+        "http://localhost:8770/public"
+      ];
+      trusted-public-keys = [
+        "public:YyCDrhNMvRWl7OxoW+8ueMcmVOOc1bllsVCMRNfZWpQ="
       ];
     };
   };
@@ -133,7 +144,7 @@
 
   users = {
     groups = {
-      foreign-backups = { };
+      #foreign-backups = { };
     };
     users = {
       root = {
@@ -143,15 +154,15 @@
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIyPkfTI0io9dZsJstcf29tddyrsHr9bnM8UXKtaVJwm will@thenixbeast"
         ];
       };
-      vulcanus = {
-        group = "foreign-backups";
-        isSystemUser = true;
-        openssh.authorizedKeys.keys = [
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfQd/8CMIOVcawUS3AvgUnT+f3cL2wJtmON8pILcwwz root@vulcanus"
-        ];
-        # TODO: lock this down further using something like: https://discourse.nixos.org/t/wrapper-to-restrict-builder-access-through-ssh-worth-upstreaming/25834/17
-        useDefaultShell = true;
-      };
+      #vulcanus = {
+      #  group = "foreign-backups";
+      #  isSystemUser = true;
+      #  openssh.authorizedKeys.keys = [
+      #    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJfQd/8CMIOVcawUS3AvgUnT+f3cL2wJtmON8pILcwwz root@vulcanus"
+      #  ];
+      #  # TODO: lock this down further using something like: https://discourse.nixos.org/t/wrapper-to-restrict-builder-access-through-ssh-worth-upstreaming/25834/17
+      #  useDefaultShell = true;
+      #};
     };
   };
 

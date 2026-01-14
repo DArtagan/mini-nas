@@ -9,6 +9,12 @@ creation_rules:
         - *mini-nas
         - *steamdeck_willy
         - *thenixbeast_will
+  - path_regex: modules/distributed_builders/secrets.yaml
+    key_groups:
+    - age:
+        - *mini-nas
+        - *steamdeck_willy
+        - *thenixbeast_will
 stores:
   yaml:
     indent: 2
