@@ -13,6 +13,10 @@
     };
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
     proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
+    queued-build-hook = {
+      url = "github:nix-community/queued-build-hook";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -27,6 +31,7 @@
       disko,
       nixos-facter-modules,
       proxmox-nixos,
+      queued-build-hook,
       sops-nix,
       ...
     }:
@@ -53,6 +58,7 @@
 
               nixpkgs.overlays = [
                 proxmox-nixos.overlays.${system}
+                queued-build-hook.overlays.default
               ];
             })
             {
