@@ -1,9 +1,25 @@
 { pkgs, ... }:
 {
-  environment.systemPackages = [ pkgs.tailscale ];
-  services.tailscale = {
-    enable = true;
-    openFirewall = true;
+  environment.systemPackages = [
+    pkgs.ethtool
+    pkgs.tailscale
+  ];
+  services = {
+    networkd-dispatcher = {
+      enable = true;
+      rules."50-tailscale-optimizations" = {
+        onState = [ "routable" ];
+        # Note: replace `eth0` below with the actual WAN interface for this machine, if different
+        script = ''
+          ${pkgs.ethtool}/bin/ethtool -K eth0 rx-udp-gro-forwarding on rx-gro-list off
+        '';
+      };
+    };
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+      useRoutingFeatures = "both";
+    };
   };
 
   networking.firewall = {
@@ -36,7 +52,7 @@
         exit 0
       fi
 
-      ${tailscale}/bin/tailscale up
+      ${tailscale}/bin/tailscale up --advertise-exit-node
     '';
   };
 }
