@@ -20,7 +20,7 @@
     end-of-file-fixer.enable = true;
     deadnix.enable = true;
     flake-checker.enable = true;
-    nixfmt-rfc-style.enable = true;
+    nixfmt.enable = true;
     shellcheck.enable = true;
     statix.enable = true;
     tflint.enable = true;
