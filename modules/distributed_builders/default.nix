@@ -78,19 +78,6 @@
   };
 
   programs.ssh = {
-    # TODO: heads up, these pre-defined configs might grab and over-ride if one were trying to do something like `ssh will@thenixbeast`, while `ssh will@thenixbeast.force.local` still works.
-    #extraConfig = ''
-    #  Host steamdeck
-    #    HostName steamdeck.forge.local
-    #    User nix
-    #    IdentitiesOnly yes
-    #    IdentityFile ${config.sops.secrets."distributed_builders/ssh_private_key".path}
-    #  Host thenixbeast
-    #    HostName thenixbeast.forge.local
-    #    User nix
-    #    IdentitiesOnly yes
-    #    IdentityFile ${config.sops.secrets."distributed_builders/ssh_private_key".path}
-    #'';
     knownHosts = {
       steamdeck = {
         extraHostNames = [
