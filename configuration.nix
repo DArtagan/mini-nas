@@ -11,6 +11,7 @@
     ./proxmox.nix
     ./modules/attic
     ./modules/distributed_builders
+    ./modules/nightly_config_builder
     ./modules/tailscale
   ];
 
