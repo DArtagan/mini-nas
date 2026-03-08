@@ -34,13 +34,12 @@ in
         # Get the commit ID of the nixpkgs input (locked in flake.lock)
         COMMIT_ID=$(jq -r .nodes.nixpkgs.locked.rev flake.lock)
 
-        # Build all host configurations (--cores 1 to limit memory usage)
+        # Build all host configurations
         for host in iso steamdeck thenixbeast; do
           echo "Building $host..."
           if nix build .#nixosConfigurations.$host.config.system.build.toplevel \
             --out-link "/var/lib/nightly_config_builder/result-$host" \
-            --print-out-paths \
-            --max-jobs 1; then
+            --print-out-paths; then
               echo "$COMMIT_ID" > "/var/lib/nightly_config_builder/$host.rev"
           else
               echo "Warning: $host build failed, continuing..."
