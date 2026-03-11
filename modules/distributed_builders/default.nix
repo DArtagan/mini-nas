@@ -44,18 +44,18 @@
           maxJobs = 12;
           speedFactor = 4;
         }
-        {
-          inherit
-            protocol
-            sshKey
-            sshUser
-            supportedFeatures
-            systems
-            ;
-          hostName = "steamdeck.forge.local";
-          maxJobs = 4;
-          speedFactor = 1;
-        }
+        #{
+        #  inherit
+        #    protocol
+        #    sshKey
+        #    sshUser
+        #    supportedFeatures
+        #    systems
+        #    ;
+        #  hostName = "steamdeck.forge.local";
+        #  maxJobs = 4;
+        #  speedFactor = 1;
+        #}
       ];
     settings = {
       builders-use-substitutes = true;
