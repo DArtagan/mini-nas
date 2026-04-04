@@ -143,6 +143,10 @@
     hostId = lib.mkDefault "c25481ef";
   };
 
+  programs = {
+    nh.enable = true;
+  };
+
   users = {
     groups = {
       #foreign-backups = { };
@@ -202,6 +206,10 @@
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIfwKbvNbbcYURG80TdzbFn9vdUFNMpnUoE67ExARElv";
       };
       settings = {
+        AcceptEnv = lib.mkForce [
+          "LANG"
+          "LC_*"
+        ]; # Fix for: https://github.com/SaumonNet/proxmox-nixos/issues/212
         #PermitRootLogin = "no"; # disable root login
         PasswordAuthentication = false; # disable password login, require keys
       };

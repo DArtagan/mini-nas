@@ -22,6 +22,7 @@ in
         # Clone or update dotfiles
         if [ ! -d "$DOTFILES" ]; then
           git clone ${repository} "$DOTFILES"
+          cd "$DOTFILES"
         else
           cd "$DOTFILES"
           git fetch origin
