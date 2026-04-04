@@ -1,5 +1,29 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 {
+  sops = {
+    secrets = {
+      tailscale_login_server = {
+        sopsFile = ./secrets.yaml;
+      };
+    };
+    templates = {
+      tailscale-autoconnect = {
+        content = with pkgs; ''
+          # Wait for tailscaled to settle
+          sleep 2
+
+          # Check if we are already authenticated to tailscale
+          status="$(${tailscale}/bin/tailscale status -json | ${jq}/bin/jq -r .BackendState)"
+          if [ $status = "Running" ]; then # If so, then do nothing
+            exit 0
+          fi
+
+          ${tailscale}/bin/tailscale up --advertise-exit-node --login-server=${config.sops.placeholder.tailscale_login_server}
+        '';
+      };
+    };
+  };
+
   environment.systemPackages = [
     pkgs.ethtool
     pkgs.tailscale
@@ -42,17 +66,6 @@
     wantedBy = [ "multi-user.target" ];
 
     # Have the job run this shell script
-    script = with pkgs; ''
-      # Wait for tailscaled to settle
-      sleep 2
-
-      # Check if we are already authenticated to tailscale
-      status="$(${tailscale}/bin/tailscale status -json | ${jq}/bin/jq -r .BackendState)"
-      if [ $status = "Running" ]; then # If so, then do nothing
-        exit 0
-      fi
-
-      ${tailscale}/bin/tailscale up --advertise-exit-node
-    '';
+    script = with pkgs; "${bash}/bin/bash ${config.sops.templates.tailscale-autoconnect.path}";
   };
 }
