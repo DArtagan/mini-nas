@@ -141,6 +141,7 @@
 
   networking = {
     hostId = lib.mkDefault "c25481ef";
+    hostName = "mini-nas";
   };
 
   programs = {
