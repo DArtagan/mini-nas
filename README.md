@@ -10,7 +10,7 @@ Configuration for mini-ITX server
 5. On the NAS machine `lsblk -o name,size,model,serial,uuid | grep sd` to double-check the disk IDs.  Update those in `disk-config.nix`.
 6. `echo {} > facter.json` to zero that file out, ready for terraform to freshly populate it.
 7. `nix run github:nix-community/nixos-anywhere -- --generate-hardware-config nixos-facter ./facter.json --flake .#nixosConfiguration.mini-nas --target-host root@192.168.1.11`
-7. `terraform apply`
+8. `terraform apply`
 
 # Update
 
