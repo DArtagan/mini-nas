@@ -130,6 +130,8 @@
     with pkgs;
     map lib.lowPrio [
       gitMinimal # Flakes clones its dependencies through the git command, so git must be installed first
+      e2fsprogs # Provides `badblocks` for disk testing
+      gptfdisk # Provides `sgdisk` for partitioning during disk replacement
       bottom # resource monitoring, alternative to top
       curl
       hddfancontrol
@@ -179,7 +181,7 @@
         harddrives = {
           disks = [
             "/dev/disk/by-id/ata-Hitachi_HUA723030ALA641_YHHT74WA"
-            "/dev/disk/by-id/ata-ST3000DM001-1CH166_Z1F48TA8"
+            "/dev/disk/by-id/ata-OOS3000G_00038E07"
             "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2RP"
             "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2SR"
             "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY8DP80"
