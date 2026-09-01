@@ -246,7 +246,17 @@
       enable = true;
       # Third Sunday, so it never coincides with vulcanus's second-Sunday
       # scrub -- both would otherwise compete for the same replication window.
-      interval = "Sun *-*-15..21 03:00:00";
+      # 03:20 rather than the hour, to miss the hourly sanoid and syncoid runs
+      # at :00 and :15.
+      interval = "Sun *-*-15..21 03:20:00";
+      # The 6h default assumes a fleet, or several pools on shared spindles.
+      # Neither holds here: one host, one zfs-scrub.service covering both
+      # pools, and a scrub that runs for days -- so six hours of jitter cannot
+      # decorrelate anything the runtime does not already overlap, and only
+      # makes the start time unattributable. What the jitter is still for is
+      # Persistent=yes: this host reboots itself via system.autoUpgrade, and
+      # every missed timer fires at once on the way back up.
+      randomizedDelaySec = "15m";
     };
 
     sanoid = {
