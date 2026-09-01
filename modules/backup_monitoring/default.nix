@@ -2,11 +2,10 @@
 # healthchecks.io, and two timers assert the state of the *store* rather than
 # the exit code of the job that wrote it.
 #
-# That distinction is the whole point. syncoid-vulcanus-data exited non-zero on
-# every run for seven months and nobody noticed, because nothing watched it —
-# but a green exit code would have lied too, since it was replicating eight of
-# thirteen datasets and succeeding for those. A job saying "I worked" is not
-# evidence the data is there.
+# The distinction is load-bearing. A recursive replication job can exit zero
+# while carrying only part of its dataset list, and a job that stops running
+# emits nothing at all. Neither state is visible from the job's own result, so
+# the assertions below read the target instead.
 {
   config,
   lib,
@@ -197,10 +196,10 @@ in
       description = "Assert pool health, errors, capacity and scrub age";
       serviceConfig = {
         Type = "oneshot";
-        # 90/94 rather than the usual 80/90 while the vdev expansion to
-        # 4-disk raidz1 is pending: occupancy is predicted to sit at 82-87%
-        # until then, and a warning that is always on is one nobody reads.
-        # Restore 80 once the expansion lands and occupancy falls to ~53%.
+        # 90 rather than the usual 80 while the vdev expansion to 4-disk
+        # raidz1 is pending, because occupancy sits above 80 until then and a
+        # warning that is always on is one nobody reads. Goes back to 80 with
+        # the expansion.
         ExecStart = "${poolHealth}/bin/zfs-pool-health pool-health-mini-nas 90";
       };
     };

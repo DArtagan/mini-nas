@@ -103,11 +103,10 @@
     tmp.useTmpfs = true;
     zfs = {
       devNodes = "/dev/";
-      # disko declares spool but nothing imported it, so ~1.7 TiB sits idle
-      # while rpool runs at 89%. Interim capacity only: its two bays are the
-      # only expansion room the 8-bay chassis has, and its 1.8 TiB disks are
-      # too small to join either rpool vdev, so the pool is destroyed and the
-      # slots refilled once replacement disks arrive.
+      # Interim capacity. spool's two bays are the only expansion room an
+      # 8-bay chassis has, and its 1.8 TiB disks are too small to join either
+      # rpool vdev, so the pool is destroyed and the slots refilled once
+      # replacement disks arrive.
       extraPools = [ "spool" ];
     };
   };
@@ -253,10 +252,9 @@
     sanoid = {
       enable = true;
 
-      # `services.sanoid.enable = true` with no datasets generates an empty
-      # config, and sanoid fatals on an empty config. It did so hourly for
-      # seven months, so nothing pruned the replication target and 29,305
-      # snapshots accumulated here against 1,467 at the source.
+      # Datasets are not optional here: `enable = true` with none declared
+      # generates an empty config, sanoid fatals on an empty config, and
+      # nothing prunes the replication target.
       #
       # autosnap is off everywhere: snapshots arrive by replication, and taking
       # local ones would leave the target ahead of the source, which makes the
