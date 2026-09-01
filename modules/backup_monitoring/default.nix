@@ -26,7 +26,20 @@ let
         echo "hc-ping: no URL at $url_file" >&2
         exit 1
       fi
-      curl -fsS -m 10 --retry 3 -o /dev/null "$(cat "$url_file")''${2:-}"
+      url="$(cat "$url_file")"
+      # A secret that is not a URL is a configuration error, and curl's
+      # complaint about it is unhelpful: brackets are glob syntax, so a stray
+      # ENC[...] blob is reported as "bad range in position 5" rather than as
+      # the wrong value it is. Say so plainly, without echoing the secret.
+      case "$url" in
+        https://*) ;;
+        *)
+          echo "hc-ping: $url_file does not contain an https:// URL" >&2
+          exit 1
+          ;;
+      esac
+      # -g because a URL is data, not a glob pattern.
+      curl -fsS -g -m 10 --retry 3 -o /dev/null "$url''${2:-}"
     '';
   };
 
@@ -214,10 +227,16 @@ in
   }
   // lib.genAttrs monitoredUnits (unit: {
     onFailure = [ "healthcheck-fail@${checkNameFor unit}.service" ];
-    # The `+` prefix runs this as root regardless of the unit's User=, so the
-    # secrets can stay 0400 root-owned rather than being opened up to the
-    # syncoid user.
-    serviceConfig.ExecStartPost = "+${hcPing}/bin/hc-ping ${checkNameFor unit}";
+    # `+` runs this as root regardless of the unit's User=, so the secrets
+    # stay 0400 root-owned rather than being opened up to the syncoid user.
+    #
+    # `-` because a backup that ran is not a backup that failed. Without it,
+    # an unreachable monitor fails ExecStartPost, which fails the unit, which
+    # fires OnFailure -- so a reporting outage is indistinguishable from a
+    # replication outage. Nothing is lost by ignoring it: a ping that does not
+    # arrive turns the check red on its own period, which is what the period
+    # is for.
+    serviceConfig.ExecStartPost = "-+${hcPing}/bin/hc-ping ${checkNameFor unit}";
   });
 
   systemd.timers = {
