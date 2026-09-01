@@ -103,8 +103,11 @@
     tmp.useTmpfs = true;
     zfs = {
       devNodes = "/dev/";
-      # disko declares spool but nothing imported it, so ~1.7 TiB sat idle
-      # while rpool ran at 89%. It holds the second PBS datastore.
+      # disko declares spool but nothing imported it, so ~1.7 TiB sits idle
+      # while rpool runs at 89%. Interim capacity only: its two bays are the
+      # only expansion room the 8-bay chassis has, and its 1.8 TiB disks are
+      # too small to join either rpool vdev, so the pool is destroyed and the
+      # slots refilled once replacement disks arrive.
       extraPools = [ "spool" ];
     };
   };
