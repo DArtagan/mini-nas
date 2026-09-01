@@ -1,0 +1,244 @@
+# Monitoring for the backup layer: every job reports success to
+# healthchecks.io, and two timers assert the state of the *store* rather than
+# the exit code of the job that wrote it.
+#
+# That distinction is the whole point. syncoid-vulcanus-data exited non-zero on
+# every run for seven months and nobody noticed, because nothing watched it —
+# but a green exit code would have lied too, since it was replicating eight of
+# thirteen datasets and succeeding for those. A job saying "I worked" is not
+# evidence the data is there.
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+
+let
+  # Reads a check's URL from its sops secret and pings it. The optional second
+  # argument is a path suffix -- "/fail" reports failure immediately rather
+  # than waiting for the check's period to lapse.
+  hcPing = pkgs.writeShellApplication {
+    name = "hc-ping";
+    runtimeInputs = [ pkgs.curl ];
+    text = ''
+      url_file="/run/secrets/healthchecks/$1"
+      if [ ! -r "$url_file" ]; then
+        echo "hc-ping: no URL at $url_file" >&2
+        exit 1
+      fi
+      curl -fsS -m 10 --retry 3 -o /dev/null "$(cat "$url_file")''${2:-}"
+    '';
+  };
+
+  # Pool health, checked from the pool rather than from a scrub unit's exit
+  # code. `zfs-scrub@` exits 0 having found errors, so OnFailure= and a success
+  # ping cannot report a dirty pool. These four conditions can.
+  poolHealth = pkgs.writeShellApplication {
+    name = "zfs-pool-health";
+    runtimeInputs = [
+      pkgs.zfs
+      pkgs.jq
+      hcPing
+    ];
+    text = ''
+      check="$1"
+      capacity_limit="$2"
+      problems=""
+
+      note() { problems="''${problems}$1"$'\n'; }
+
+      # Catches DEGRADED and FAULTED, which no scrub exit code reports.
+      if ! zpool status -x | grep -q '^all pools are healthy$'; then
+        note "zpool status -x: $(zpool status -x | head -1)"
+      fi
+
+      status_json="$(zpool status -j)"
+
+      for pool in $(zpool list -H -o name); do
+        pool_json="$(jq -r --arg p "$pool" '.pools[$p]' <<<"$status_json")"
+
+        errors="$(jq -r '.error_count' <<<"$pool_json")"
+        [ "$errors" = "0" ] || note "$pool: $errors data errors"
+
+        # Sums read/write/checksum across every vdev, at any nesting depth.
+        vdev_errors="$(
+          jq -r '[.. | objects | select(has("read_errors"))
+                  | (.read_errors|tonumber) + (.write_errors|tonumber)
+                    + (.checksum_errors|tonumber)] | add // 0' <<<"$pool_json"
+        )"
+        [ "$vdev_errors" = "0" ] || note "$pool: $vdev_errors vdev errors"
+
+        capacity="$(zpool list -H -o capacity "$pool" | tr -d '%')"
+        if [ "$capacity" -ge "$capacity_limit" ]; then
+          note "$pool: $capacity% full, limit $capacity_limit%"
+        fi
+
+        # A resilver is not a scrub. Until a scrub has actually finished, the
+        # pool is unverified and this says so rather than passing on a
+        # RESILVER record that happens to be recent.
+        scan_function="$(jq -r '.scan_stats.function // "NONE"' <<<"$pool_json")"
+        scan_state="$(jq -r '.scan_stats.state // "NONE"' <<<"$pool_json")"
+        if [ "$scan_state" = "SCANNING" ]; then
+          : # scrub or resilver in progress; judge it when it finishes
+        elif [ "$scan_function" != "SCRUB" ]; then
+          note "$pool: never scrubbed"
+        else
+          end_time="$(jq -r '.scan_stats.end_time' <<<"$pool_json")"
+          if end_epoch="$(date -d "$end_time" +%s 2>/dev/null)"; then
+            age_days=$(( ( $(date +%s) - end_epoch ) / 86400 ))
+            [ "$age_days" -le 45 ] || note "$pool: last scrub $age_days days ago"
+          else
+            note "$pool: unparseable scrub end_time '$end_time'"
+          fi
+        fi
+      done
+
+      if [ -n "$problems" ]; then
+        printf '%s' "$problems" >&2
+        hc-ping "$check" /fail
+        exit 1
+      fi
+      hc-ping "$check"
+    '';
+  };
+
+  # Asserts that every replicated dataset is recent, and that the target holds
+  # every dataset the source has. Per protected object, not per job.
+  replicationFreshness = pkgs.writeShellApplication {
+    name = "zfs-replication-freshness";
+    runtimeInputs = [
+      pkgs.zfs
+      pkgs.openssh
+      hcPing
+    ];
+    text = ''
+      check="$1"
+      target_base="rpool/foreign-backups/vulcanus"
+      source_host="mini-nas@vulcanus.forge.local"
+      ssh_key="${config.sops.secrets."users/syncoid/ssh_private_key".path}"
+      problems=""
+
+      note() { problems="''${problems}$1"$'\n'; }
+
+      # Maximum age per group, derived from the *source's* sanoid schedule:
+      # rpool/storage snapshots hourly, rpool/data and rpool/ROOT daily. A
+      # dataset older than this is stale even if every unit exited 0.
+      max_age_for() {
+        case "$1" in
+          "$target_base"/storage*) echo 10800 ;;
+          *) echo 93600 ;;
+        esac
+      }
+
+      now="$(date +%s)"
+      for dataset in $(zfs list -H -o name -r "$target_base"); do
+        [ "$dataset" = "$target_base" ] && continue
+        newest="$(zfs list -t snapshot -H -p -o creation -s creation -d1 "$dataset" 2>/dev/null | tail -1)"
+        if [ -z "$newest" ]; then
+          note "$dataset: no snapshots at all"
+          continue
+        fi
+        age=$(( now - newest ))
+        limit="$(max_age_for "$dataset")"
+        if [ "$age" -gt "$limit" ]; then
+          note "$dataset: newest snapshot $(( age / 3600 ))h old, limit $(( limit / 3600 ))h"
+        fi
+      done
+
+      # A dataset that was never replicated has no stale snapshot to find, so
+      # freshness alone cannot see it. Compare against the source.
+      for source_root in rpool/storage rpool/ROOT rpool/data; do
+        if ! source_list="$(ssh -i "$ssh_key" -o BatchMode=yes -o ConnectTimeout=15 \
+              "$source_host" "zfs list -H -o name -r $source_root" 2>&1)"; then
+          note "could not list $source_root on the source: $source_list"
+          continue
+        fi
+        for source_dataset in $source_list; do
+          expected="$target_base/''${source_dataset#rpool/}"
+          zfs list -H -o name "$expected" >/dev/null 2>&1 \
+            || note "$source_dataset has no counterpart at $expected"
+        done
+      done
+
+      if [ -n "$problems" ]; then
+        printf '%s' "$problems" >&2
+        hc-ping "$check" /fail
+        exit 1
+      fi
+      hc-ping "$check"
+    '';
+  };
+
+  # Units whose success should ping a check of the same name. Each also gets an
+  # OnFailure= so a hard failure reports immediately instead of waiting out the
+  # check's period.
+  monitoredUnits = [
+    "sanoid"
+    "syncoid-vulcanus-storage"
+    "syncoid-vulcanus-root"
+    "syncoid-vulcanus-data"
+  ];
+
+  checkNameFor = unit: if unit == "sanoid" then "sanoid-mini-nas" else unit;
+in
+{
+  systemd.services = {
+    # Instantiated by OnFailure=. The instance name is the check name.
+    "healthcheck-fail@" = {
+      description = "Report failure of %i to healthchecks.io";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${hcPing}/bin/hc-ping %i /fail";
+      };
+    };
+
+    zfs-pool-health = {
+      description = "Assert pool health, errors, capacity and scrub age";
+      serviceConfig = {
+        Type = "oneshot";
+        # 90/94 rather than the usual 80/90 while the vdev expansion to
+        # 4-disk raidz1 is pending: occupancy is predicted to sit at 82-87%
+        # until then, and a warning that is always on is one nobody reads.
+        # Restore 80 once the expansion lands and occupancy falls to ~53%.
+        ExecStart = "${poolHealth}/bin/zfs-pool-health pool-health-mini-nas 90";
+      };
+    };
+
+    zfs-replication-freshness = {
+      description = "Assert every replicated dataset is present and recent";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${replicationFreshness}/bin/zfs-replication-freshness zfs-replication-freshness";
+      };
+    };
+  }
+  // lib.genAttrs monitoredUnits (unit: {
+    onFailure = [ "healthcheck-fail@${checkNameFor unit}.service" ];
+    # The `+` prefix runs this as root regardless of the unit's User=, so the
+    # secrets can stay 0400 root-owned rather than being opened up to the
+    # syncoid user.
+    serviceConfig.ExecStartPost = "+${hcPing}/bin/hc-ping ${checkNameFor unit}";
+  });
+
+  systemd.timers = {
+    zfs-pool-health = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "hourly";
+        RandomizedDelaySec = "5m";
+        Persistent = true;
+      };
+    };
+
+    zfs-replication-freshness = {
+      wantedBy = [ "timers.target" ];
+      # 06:30 MDT on vulcanus is 08:30 here; late enough that the nightly
+      # daily snapshots have been taken and pulled.
+      timerConfig = {
+        OnCalendar = "*-*-* 08:30:00";
+        Persistent = true;
+      };
+    };
+  };
+}

@@ -10,6 +10,7 @@
     ./disk-config.nix
     ./proxmox.nix
     ./modules/attic
+    ./modules/backup_monitoring
     ./modules/distributed_builders
     ./modules/nightly_config_builder
     ./modules/tailscale
@@ -39,7 +40,23 @@
           owner = config.services.syncoid.user;
           mode = "400";
         };
-      };
+      }
+      //
+        lib.genAttrs
+          [
+            # Ping URLs for the backup layer. Root-owned: the units that use them
+            # ping through an ExecStartPost with a `+` prefix, which runs as root
+            # regardless of the unit's own User=.
+            "healthchecks/sanoid-mini-nas"
+            "healthchecks/syncoid-vulcanus-storage"
+            "healthchecks/syncoid-vulcanus-root"
+            "healthchecks/syncoid-vulcanus-data"
+            "healthchecks/pool-health-mini-nas"
+            "healthchecks/zfs-replication-freshness"
+          ]
+          (_: {
+            mode = "400";
+          });
     };
 
   boot = {
@@ -84,7 +101,12 @@
 
     supportedFilesystems = [ "zfs" ];
     tmp.useTmpfs = true;
-    zfs.devNodes = "/dev/";
+    zfs = {
+      devNodes = "/dev/";
+      # disko declares spool but nothing imported it, so ~1.7 TiB sat idle
+      # while rpool ran at 89%. It holds the second PBS datastore.
+      extraPools = [ "spool" ];
+    };
   };
 
   fileSystems = {
@@ -218,7 +240,67 @@
       };
       openFirewall = true;
     };
-    sanoid.enable = true;
+    zfs.autoScrub = {
+      enable = true;
+      # Third Sunday, so it never coincides with vulcanus's second-Sunday
+      # scrub -- both would otherwise compete for the same replication window.
+      interval = "Sun *-*-15..21 03:00:00";
+    };
+
+    sanoid = {
+      enable = true;
+
+      # `services.sanoid.enable = true` with no datasets generates an empty
+      # config, and sanoid fatals on an empty config. It did so hourly for
+      # seven months, so nothing pruned the replication target and 29,305
+      # snapshots accumulated here against 1,467 at the source.
+      #
+      # autosnap is off everywhere: snapshots arrive by replication, and taking
+      # local ones would leave the target ahead of the source, which makes the
+      # next incremental receive fail without -F.
+      templates = {
+        # Mass files. Deeper daily history than the source keeps, because
+        # syncoid runs --no-sync-snap: a target that retains more than the
+        # source is what makes a deletion discovered late still recoverable.
+        # Fewer hourlies than the source, because "I just deleted that" is
+        # served by the copy on vulcanus, not by this one.
+        replica-deep = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 24;
+          daily = 60;
+          monthly = 24;
+          yearly = 0;
+        };
+        # Guest zvols and the PVE root. High churn, and rpool/data stops being
+        # replicated once PBS sync covers the guests, so depth here would be
+        # paid for and then thrown away.
+        replica-shallow = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 0;
+          daily = 30;
+          monthly = 0;
+          yearly = 0;
+        };
+      };
+
+      datasets = {
+        "rpool/foreign-backups/vulcanus/storage" = {
+          useTemplate = [ "replica-deep" ];
+          recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/ROOT" = {
+          useTemplate = [ "replica-shallow" ];
+          recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/data" = {
+          useTemplate = [ "replica-shallow" ];
+          recursive = true;
+        };
+      };
+    };
+
     syncoid = {
       enable = true;
       commonArgs = [
