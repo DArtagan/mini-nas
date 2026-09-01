@@ -22,7 +22,7 @@
       user_ssh_private_key = "/root/.ssh/id_ed25519";
     in
     {
-      defaultSopsFile = ./secrets.yaml;
+      defaultSopsFile = ./secrets.sops.yaml;
       age.sshKeyPaths = [ host_ssh_private_key ];
       environment.SOPS_AGE_SSH_PRIVATE_KEY_FILE = host_ssh_private_key;
       secrets = {

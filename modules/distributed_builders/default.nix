@@ -2,10 +2,10 @@
 {
   sops.secrets = {
     "distributed_builders/ssh_private_key" = {
-      sopsFile = ./secrets.yaml;
+      sopsFile = ./secrets.sops.yaml;
     };
     "distributed_builders/ssh_public_key" = {
-      sopsFile = ./secrets.yaml;
+      sopsFile = ./secrets.sops.yaml;
     };
   };
 
