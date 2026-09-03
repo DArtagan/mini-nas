@@ -43,6 +43,26 @@ let
     '';
   };
 
+  # Reports a unit's real outcome. systemd sets $SERVICE_RESULT for ExecStopPost
+  # commands, so this runs once per invocation, after the process has actually
+  # exited, and knows whether it worked.
+  #
+  # ExecStartPost cannot do this. Under Type=simple the unit counts as started
+  # about a second after fork, so a success ping fires before the job has done
+  # anything -- reporting success on every run whatever the outcome, and leaving
+  # a hung job's check green forever. That is the failure this module exists to
+  # catch, so it must not be the way this module reports.
+  hcReport = pkgs.writeShellApplication {
+    name = "hc-report";
+    runtimeInputs = [ hcPing ];
+    text = ''
+      case "''${SERVICE_RESULT:-}" in
+        success) hc-ping "$1" ;;
+        *) hc-ping "$1" /fail ;;
+      esac
+    '';
+  };
+
   # Pool health, checked from the pool rather than from a scrub unit's exit
   # code. `zfs-scrub@` exits 0 having found errors, so OnFailure= and a success
   # ping cannot report a dirty pool. These four conditions can.
@@ -226,17 +246,18 @@ in
     };
   }
   // lib.genAttrs monitoredUnits (unit: {
-    onFailure = [ "healthcheck-fail@${checkNameFor unit}.service" ];
-    # `+` runs this as root regardless of the unit's User=, so the secrets
-    # stay 0400 root-owned rather than being opened up to the syncoid user.
+    # Reported from ExecStopPost, not ExecStartPost, and without an OnFailure.
+    # These units are Type=simple, so ExecStartPost runs about a second after
+    # fork -- it would ping success before the job had done anything, on every
+    # run whatever the outcome, and a hung job would hold the check green
+    # indefinitely. ExecStopPost runs once the process has exited and carries
+    # $SERVICE_RESULT, so one ping per run reports what actually happened.
     #
-    # `-` because a backup that ran is not a backup that failed. Without it,
-    # an unreachable monitor fails ExecStartPost, which fails the unit, which
-    # fires OnFailure -- so a reporting outage is indistinguishable from a
-    # replication outage. Nothing is lost by ignoring it: a ping that does not
-    # arrive turns the check red on its own period, which is what the period
-    # is for.
-    serviceConfig.ExecStartPost = "-+${hcPing}/bin/hc-ping ${checkNameFor unit}";
+    # `+` runs it as root regardless of the unit's User=, so the secrets stay
+    # 0400 root-owned. `-` because a backup that ran is not a backup that
+    # failed: an unreachable monitor must not mark the unit failed. A ping that
+    # does not arrive turns the check red on its own period.
+    serviceConfig.ExecStopPost = "-+${hcReport}/bin/hc-report ${checkNameFor unit}";
   });
 
   systemd.timers = {
