@@ -3,7 +3,7 @@
   sops = {
     secrets = {
       tailscale_login_server = {
-        sopsFile = ./secrets.yaml;
+        sopsFile = ./secrets.sops.yaml;
       };
     };
     templates = {

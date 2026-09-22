@@ -53,7 +53,7 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 
 ### modules/
 
-Each subdirectory is an imported NixOS module, some with their own `secrets.yaml`:
+Each subdirectory is an imported NixOS module, some with their own `secrets.sops.yaml`:
 
 - **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`). Also installs a
   `queued-build-hook` that pushes locally-built store paths to the `public` cache. The host
@@ -70,13 +70,13 @@ Each subdirectory is an imported NixOS module, some with their own `secrets.yaml
 
 Secrets are `sops`-encrypted YAML, decrypted at activation by `sops-nix`. Recipients are
 age keys derived from SSH keys, declared in `.sops.yaml` (`mini-nas` host key plus
-`steamdeck`/`thenixbeast` admin keys). Rules there map each `secrets.yaml` path to its key
+`steamdeck`/`thenixbeast` admin keys). Rules there map each `secrets.sops.yaml` path to its key
 group.
 
-- `secrets.yaml` — host-wide (root/syncoid SSH keys).
-- `tofu_secrets.yaml` — Proxmox API token + user password, read by Terraform via the sops
+- `secrets.sops.yaml` — host-wide (root/syncoid SSH keys).
+- `tofu_secrets.sops.yaml` — Proxmox API token + user password, read by Terraform via the sops
   provider.
-- `modules/*/secrets.yaml` — per-module (attic env file, tailscale login server, builder
+- `modules/*/secrets.sops.yaml` — per-module (attic env file, tailscale login server, builder
   keys).
 
 To add or edit a secret, edit the matching `*.yaml` through `sops`, and ensure the path is

@@ -10,6 +10,7 @@
     ./disk-config.nix
     ./proxmox.nix
     ./modules/attic
+    ./modules/backup_monitoring
     ./modules/distributed_builders
     ./modules/nightly_config_builder
     ./modules/tailscale
@@ -21,7 +22,7 @@
       user_ssh_private_key = "/root/.ssh/id_ed25519";
     in
     {
-      defaultSopsFile = ./secrets.yaml;
+      defaultSopsFile = ./secrets.sops.yaml;
       age.sshKeyPaths = [ host_ssh_private_key ];
       environment.SOPS_AGE_SSH_PRIVATE_KEY_FILE = host_ssh_private_key;
       secrets = {
@@ -39,7 +40,23 @@
           owner = config.services.syncoid.user;
           mode = "400";
         };
-      };
+      }
+      //
+        lib.genAttrs
+          [
+            # Ping URLs for the backup layer. Root-owned: the units that use them
+            # ping through an ExecStartPost with a `+` prefix, which runs as root
+            # regardless of the unit's own User=.
+            "healthchecks/sanoid-mini-nas"
+            "healthchecks/syncoid-vulcanus-storage"
+            "healthchecks/syncoid-vulcanus-root"
+            "healthchecks/syncoid-vulcanus-data"
+            "healthchecks/pool-health-mini-nas"
+            "healthchecks/zfs-replication-freshness"
+          ]
+          (_: {
+            mode = "400";
+          });
     };
 
   boot = {
@@ -84,7 +101,14 @@
 
     supportedFilesystems = [ "zfs" ];
     tmp.useTmpfs = true;
-    zfs.devNodes = "/dev/";
+    zfs = {
+      devNodes = "/dev/";
+      # Interim capacity. spool's two bays are the only expansion room an
+      # 8-bay chassis has, and its 1.8 TiB disks are too small to join either
+      # rpool vdev, so the pool is destroyed and the slots refilled once
+      # replacement disks arrive.
+      extraPools = [ "spool" ];
+    };
   };
 
   fileSystems = {
@@ -218,7 +242,92 @@
       };
       openFirewall = true;
     };
-    sanoid.enable = true;
+    zfs.autoScrub = {
+      enable = true;
+      # Third Sunday, so it never coincides with vulcanus's second-Sunday
+      # scrub -- both would otherwise compete for the same replication window.
+      # 03:20 rather than the hour, to miss the hourly sanoid and syncoid runs
+      # at :00 and :15.
+      interval = "Sun *-*-15..21 03:20:00";
+      # The 6h default assumes a fleet, or several pools on shared spindles.
+      # Neither holds here: one host, one zfs-scrub.service covering both
+      # pools, and a scrub that runs for days -- so six hours of jitter cannot
+      # decorrelate anything the runtime does not already overlap, and only
+      # makes the start time unattributable. What the jitter is still for is
+      # Persistent=yes: this host reboots itself via system.autoUpgrade, and
+      # every missed timer fires at once on the way back up.
+      randomizedDelaySec = "15m";
+    };
+
+    sanoid = {
+      enable = true;
+
+      # Datasets are not optional here: `enable = true` with none declared
+      # generates an empty config, sanoid fatals on an empty config, and
+      # nothing prunes the replication target.
+      #
+      # autosnap is off everywhere: snapshots arrive by replication, and taking
+      # local ones would leave the target ahead of the source, which makes the
+      # next incremental receive fail without -F.
+      templates = {
+        # Mass files. Deeper daily history than the source keeps, because
+        # syncoid runs --no-sync-snap: a target that retains more than the
+        # source is what makes a deletion discovered late still recoverable.
+        # Fewer hourlies than the source, because "I just deleted that" is
+        # served by the copy on vulcanus, not by this one.
+        replica-deep = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 24;
+          daily = 60;
+          monthly = 24;
+          yearly = 0;
+        };
+        # Guest zvols and the PVE root. High churn, and rpool/data stops being
+        # replicated once PBS sync covers the guests, so depth here would be
+        # paid for and then thrown away.
+        replica-shallow = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 0;
+          daily = 30;
+          monthly = 0;
+          yearly = 0;
+        };
+        # The restic repository. restic keeps its own history, so these are for
+        # losing the repository itself, and deeper than the source's 30 dailies
+        # for the same reason as replica-deep. No monthlies: every snapshot pins
+        # the pack files restic's monthly prune rewrites, for as long as it is
+        # kept.
+        replica-restic = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 0;
+          daily = 60;
+          monthly = 0;
+          yearly = 0;
+        };
+      };
+
+      datasets = {
+        "rpool/foreign-backups/vulcanus/storage" = {
+          useTemplate = [ "replica-deep" ];
+          recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/ROOT" = {
+          useTemplate = [ "replica-shallow" ];
+          recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/data" = {
+          useTemplate = [ "replica-shallow" ];
+          recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/backups/restic" = {
+          useTemplate = [ "replica-restic" ];
+        };
+      };
+    };
+
     syncoid = {
       enable = true;
       commonArgs = [
@@ -244,6 +353,18 @@
           recursive = true;
           source = "mini-nas@vulcanus.forge.local:rpool/data";
           target = "rpool/foreign-backups/vulcanus/data";
+        };
+        # The restic repository alone. Not rpool/backups: that is also the parent
+        # of the 2.14 TiB borg tree, which would take this pool to ~90%.
+        #
+        # The target's parent, rpool/foreign-backups/vulcanus/backups, is a
+        # container made by hand with canmount=off. `zfs receive` creates no
+        # parents, and the syncoid module delegates its permissions to a missing
+        # target's parent, so the parent has to exist before the first run.
+        vulcanus-backups-restic = {
+          recursive = false;
+          source = "mini-nas@vulcanus.forge.local:rpool/backups/restic";
+          target = "rpool/foreign-backups/vulcanus/backups/restic";
         };
       };
     };
