@@ -154,8 +154,9 @@ let
       note() { problems="''${problems}$1"$'\n'; }
 
       # Maximum age per group, derived from the *source's* sanoid schedule:
-      # rpool/storage snapshots hourly, rpool/data and rpool/ROOT daily. A
-      # dataset older than this is stale even if every unit exited 0.
+      # rpool/storage snapshots hourly; rpool/data, rpool/ROOT and
+      # rpool/backups/restic daily. A dataset older than this is stale even if
+      # every unit exited 0.
       max_age_for() {
         case "$1" in
           "$target_base"/storage*) echo 10800 ;;
@@ -166,6 +167,11 @@ let
       now="$(date +%s)"
       for dataset in $(zfs list -H -o name -r "$target_base"); do
         [ "$dataset" = "$target_base" ] && continue
+        # A container holds nothing and receives nothing, so it has no snapshots
+        # to age: backups/, made by hand so restic's replica has a parent. Every
+        # dataset that receives keeps canmount=on, so a retired replica still
+        # fails here as intended.
+        [ "$(zfs get -H -o value canmount "$dataset")" = "off" ] && continue
         newest="$(zfs list -t snapshot -H -p -o creation -s creation -d1 "$dataset" 2>/dev/null | tail -1)"
         if [ -z "$newest" ]; then
           note "$dataset: no snapshots at all"
@@ -180,7 +186,7 @@ let
 
       # A dataset that was never replicated has no stale snapshot to find, so
       # freshness alone cannot see it. Compare against the source.
-      for source_root in rpool/storage rpool/ROOT rpool/data; do
+      for source_root in rpool/storage rpool/ROOT rpool/data rpool/backups/restic; do
         if ! source_list="$(ssh -i "$ssh_key" -o BatchMode=yes -o ConnectTimeout=15 \
               "$source_host" "zfs list -H -o name -r $source_root" 2>&1)"; then
           note "could not list $source_root on the source: $source_list"
@@ -236,6 +242,14 @@ in
         ExecStart = "${poolHealth}/bin/zfs-pool-health pool-health-mini-nas 90";
       };
     };
+
+    # The healthchecks free tier's twenty checks are all spoken for, so this unit
+    # has none of its own: a hard failure reports straight to the freshness
+    # check, which would find the replica stale anyway. Its next run turns it
+    # green again only if the replica is current.
+    syncoid-vulcanus-backups-restic.onFailure = [
+      "healthcheck-fail@zfs-replication-freshness.service"
+    ];
 
     zfs-replication-freshness = {
       description = "Assert every replicated dataset is present and recent";

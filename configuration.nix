@@ -294,6 +294,19 @@
           monthly = 0;
           yearly = 0;
         };
+        # The restic repository. restic keeps its own history, so these are for
+        # losing the repository itself, and deeper than the source's 30 dailies
+        # for the same reason as replica-deep. No monthlies: every snapshot pins
+        # the pack files restic's monthly prune rewrites, for as long as it is
+        # kept.
+        replica-restic = {
+          autosnap = false;
+          autoprune = true;
+          hourly = 0;
+          daily = 60;
+          monthly = 0;
+          yearly = 0;
+        };
       };
 
       datasets = {
@@ -308,6 +321,9 @@
         "rpool/foreign-backups/vulcanus/data" = {
           useTemplate = [ "replica-shallow" ];
           recursive = true;
+        };
+        "rpool/foreign-backups/vulcanus/backups/restic" = {
+          useTemplate = [ "replica-restic" ];
         };
       };
     };
@@ -337,6 +353,18 @@
           recursive = true;
           source = "mini-nas@vulcanus.forge.local:rpool/data";
           target = "rpool/foreign-backups/vulcanus/data";
+        };
+        # The restic repository alone. Not rpool/backups: that is also the parent
+        # of the 2.14 TiB borg tree, which would take this pool to ~90%.
+        #
+        # The target's parent, rpool/foreign-backups/vulcanus/backups, is a
+        # container made by hand with canmount=off. `zfs receive` creates no
+        # parents, and the syncoid module delegates its permissions to a missing
+        # target's parent, so the parent has to exist before the first run.
+        vulcanus-backups-restic = {
+          recursive = false;
+          source = "mini-nas@vulcanus.forge.local:rpool/backups/restic";
+          target = "rpool/foreign-backups/vulcanus/backups/restic";
         };
       };
     };
