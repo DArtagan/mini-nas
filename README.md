@@ -22,7 +22,9 @@ Manage the Nixos configuration remotely by:
 
 ## Grant access
 
-From a mini-nas console run something like (changing all the settings accordingly):
+A host that pushes its builds (mini-nas itself, or one using the dotfiles' `modules/attic-push`)
+needs a token that can only push to and pull from `public`. From a mini-nas console:
 ```
-atticd-atticadm make-token --sub "thenixbeast" --validity "99y" --pull "public" --push "public" --create-cache "thenixbeast-*" --push "thenixbeast-*" --pull "thenixbeast-*" --create-cache "public" --configure-cache "public" --configure-cache "thenixbeast-*" --configure-cache-retention "public" --configure-cache-retention "thenixbeast-*" --destroy-cache "thenixbeast-*"
+atticd-atticadm make-token --sub "<host>" --validity "99y" --pull "public" --push "public"
 ```
+Then add it to that host's sops secrets as `attic/push_token` (for mini-nas, `secrets.sops.yaml`).

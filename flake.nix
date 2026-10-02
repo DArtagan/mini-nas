@@ -31,7 +31,6 @@
       disko,
       nixos-facter-modules,
       proxmox-nixos,
-      queued-build-hook,
       sops-nix,
       ...
     }:
@@ -41,6 +40,7 @@
     {
       nixosConfigurations = {
         mini-nas = nixpkgs.lib.nixosSystem rec {
+          specialArgs = { inherit (self) inputs; };
           modules = [
             disko.nixosModules.disko
             nixos-facter-modules.nixosModules.facter
@@ -58,7 +58,6 @@
 
               nixpkgs.overlays = [
                 proxmox-nixos.overlays.${system}
-                queued-build-hook.overlays.default
               ];
             })
             {

@@ -58,10 +58,19 @@
         #}
       ];
     settings = {
+      # Read the machine list from a file only this host has. A builder adopts the
+      # `builders` value of a trusted client, so a build that steamdeck sends here reads
+      # /etc/nix/machines.steamdeck, finds nothing, and runs here rather than being
+      # forwarded again. Forwarding is what let builds loop back to the host that sent
+      # them, and deadlock on its locks (NixOS/nix#2029).
+      builders = "@/etc/nix/machines.${config.networking.hostName}";
       builders-use-substitutes = true;
       trusted-users = [ "nix" ];
     };
   };
+
+  environment.etc."nix/machines.${config.networking.hostName}".source =
+    config.environment.etc."nix/machines".source;
 
   users = {
     users.nix = {
@@ -78,6 +87,13 @@
   };
 
   programs.ssh = {
+    # Without this, a builder that's switched off stalls every build for the full TCP
+    # connect timeout before Nix moves on.
+    extraConfig = ''
+      Match user nix host thenixbeast.forge.local,steamdeck.forge.local
+        ConnectTimeout 5
+      Match all
+    '';
     knownHosts = {
       steamdeck = {
         extraHostNames = [

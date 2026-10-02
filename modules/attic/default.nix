@@ -1,15 +1,30 @@
-{ config, pkgs, ... }:
+{
+  config,
+  inputs,
+  pkgs,
+  ...
+}:
 let
-  postBuildHook = pkgs.writeScript "post-build-hook.sh" ''
-    #!${pkgs.runtimeShell}
-    export PATH=$PATH:${pkgs.nix}/bin
-    exec ${pkgs.attic-client}/bin/attic push public $OUT_PATHS
-  '';
+  queued-build-hook = inputs.queued-build-hook.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
   sockPath = "/run/post-build-hook.sock";
 
-  queueBuildHook = pkgs.writeScript "post-build-hook.sh" ''
-    ${pkgs.queued-build-hook}/bin/queued-build-hook queue --socket ${sockPath}
+  # Points attic at the token systemd hands the daemon, so no `attic login` is needed.
+  atticConfig = pkgs.writeTextDir "attic/config.toml" ''
+    [servers.local]
+    endpoint = "http://localhost:8770"
+    token-file = "/run/credentials/queued-build-hook.service/attic-push-token"
+  '';
+
+  # Run by the queued-build-hook daemon, which retries it on failure.
+  pushHook = pkgs.writeShellScript "attic-push" ''
+    exec ${pkgs.attic-client}/bin/attic push local:public $OUT_PATHS
+  '';
+
+  # Nix runs the post-build-hook synchronously, while still holding the build's output
+  # locks, so it only hands the paths to the daemon.
+  enqueueHook = pkgs.writeShellScript "enqueue-post-build-hook" ''
+    exec ${queued-build-hook}/bin/queued-build-hook queue --socket ${sockPath}
   '';
 in
 {
@@ -20,10 +35,12 @@ in
         inherit (config.services.atticd) group;
         mode = "400";
       };
+      # Mint with: atticd-atticadm make-token --sub mini-nas --validity 99y --pull public --push public
+      "attic/push_token" = { };
     };
   };
 
-  environment.systemPackages = [ pkgs.attic-client ]; # TODO: remove this line once configuration is automated
+  environment.systemPackages = [ pkgs.attic-client ];
 
   services = {
     atticd = {
@@ -53,9 +70,9 @@ in
     };
   };
 
-  # TODO: move attic-client configuration into a sops file, that's placed in the config spot (copy/paste into my dotfiles repo too).
-  # TODO: I'm doing something slightly shady in the root flake.nix - adding queued-build-hook as an overlay to nixpkgs.  Something I'd rather be doing here.
-
+  # A queue rather than `attic watch-store`: watch-store never retries a failed upload
+  # (atticd is briefly unavailable after every restart, see the dotfiles README) and
+  # skips every `-source` path.
   systemd.sockets.queued-build-hook = {
     description = "Post-build-hook socket";
     wantedBy = [ "sockets.target" ];
@@ -72,12 +89,20 @@ in
     after = [
       "network.target"
       "queued-build-hook.socket"
+      "atticd.service"
     ];
     requires = [ "queued-build-hook.socket" ];
-    serviceConfig.ExecStart = "${pkgs.queued-build-hook}/bin/queued-build-hook daemon --retry-interval 30 --hook ${postBuildHook}";
+    environment.XDG_CONFIG_HOME = "${atticConfig}";
+    serviceConfig = {
+      # Retries cover atticd's startup GC, which holds the database lock for minutes.
+      # Concurrency is capped because each finished derivation queues its own push, and
+      # a large build otherwise starts hundreds at once against atticd's SQLite.
+      ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retry-interval 30 --retries 20 --concurrency 2";
+      DynamicUser = true;
+      LoadCredential = "attic-push-token:${config.sops.secrets."attic/push_token".path}";
+      Restart = "on-failure";
+    };
   };
 
-  nix.extraOptions = ''
-    post-build-hook = ${queueBuildHook}
-  '';
+  nix.settings.post-build-hook = enqueueHook;
 }
