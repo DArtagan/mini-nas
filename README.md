@@ -22,9 +22,11 @@ Manage the Nixos configuration remotely by:
 
 ## Grant access
 
-A host that pushes its builds (mini-nas itself, or one using the dotfiles' `modules/attic-push`)
-needs a token that can only push to and pull from `public`. From a mini-nas console:
+mini-nas pushes its own builds with a token it mints at boot (`attic-push-token.service`),
+so it needs no setup. The dotfiles hosts share one token, kept in that repo's
+`modules/attic-push/secrets.yaml`. To create or replace it, from a mini-nas console:
 ```
-atticd-atticadm make-token --sub "<host>" --validity "99y" --pull "public" --push "public"
+atticd-atticadm make-token --sub "workstations" --validity "99y" --pull "public" --push "public"
 ```
-Then add it to that host's sops secrets as `attic/push_token` (for mini-nas, `secrets.sops.yaml`).
+Attic can't revoke a single token. To cut one off, rotate the signing key in
+`attic_environment_file`, which invalidates every token, then mint the shared one again.

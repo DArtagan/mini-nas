@@ -1,19 +1,20 @@
 { config, ... }:
 {
-  sops.secrets = {
-    "distributed_builders/ssh_private_key" = {
-      sopsFile = ./secrets.yaml;
-    };
-    "distributed_builders/ssh_public_key" = {
-      sopsFile = ./secrets.yaml;
-    };
-  };
+  sops.secrets."distributed_builders/ssh_private_key".sopsFile = ./secrets.yaml;
 
   nix = {
     distributedBuilds = true;
-    buildMachines =
-      let
+    buildMachines = [
+      # speedFactor calculation: CPU GHz * CPU threads
+      #   mini-nas: 4.4 * 8 = 35, normalized to mini-nas: 1
+      #   thenixbeast: 5.6 * 24 = 134, normalized to mini-nas: 3.8 -> ~4
+      # Every host sets max-jobs * cores to twice its threads. A remote build runs with
+      # this host's `cores` (8), so maxJobs gives it the same budget: 2 * 24 / 8.
+      {
         protocol = "ssh-ng";
+        hostName = "thenixbeast.forge.local";
+        maxJobs = 6;
+        speedFactor = 4;
         sshKey = config.sops.secrets."distributed_builders/ssh_private_key".path;
         sshUser = "nix";
         supportedFeatures = [
@@ -26,37 +27,8 @@
           "x86_64-linux"
           "i686-linux"
         ];
-      in
-      [
-        # speedFactor calculation: CPU GHz * CPU threads
-        #   mini-nas: 4.4 * 8 = 35, normalized to mini-nas: 1
-        #   thenixbeast: 5.6 * 24 = 134, normalized to mini-nas: 3.8 -> ~4
-        #   steamdeck: 3.5 * 8 = 28, normalized to mini-nas: 0.8 -> ~1
-        {
-          inherit
-            protocol
-            sshKey
-            sshUser
-            supportedFeatures
-            systems
-            ;
-          hostName = "thenixbeast.forge.local";
-          maxJobs = 12;
-          speedFactor = 4;
-        }
-        #{
-        #  inherit
-        #    protocol
-        #    sshKey
-        #    sshUser
-        #    supportedFeatures
-        #    systems
-        #    ;
-        #  hostName = "steamdeck.forge.local";
-        #  maxJobs = 4;
-        #  speedFactor = 1;
-        #}
-      ];
+      }
+    ];
     settings = {
       # Read the machine list from a file only this host has. A builder adopts the
       # `builders` value of a trusted client, so a build that steamdeck sends here reads
@@ -76,9 +48,11 @@
     users.nix = {
       isSystemUser = true;
       group = "nix";
-      # TODO: lock this down further using something like: https://discourse.nixos.org/t/wrapper-to-restrict-builder-access-through-ssh-worth-upstreaming/25834/17
+      # The key can only talk to the Nix daemon, which is all `ssh-ng` builds need. It
+      # stays a trusted user: builders must accept unsigned build inputs, and adopt the
+      # sender's `builders` setting (see above).
       openssh.authorizedKeys.keys = [
-        "no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEufEieU/OuOiSA3jfmUo4ro9UQFC2tMkzL/NdRuP3Qh"
+        "restrict,command=\"${config.nix.package}/bin/nix-daemon --stdio\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEufEieU/OuOiSA3jfmUo4ro9UQFC2tMkzL/NdRuP3Qh"
       ];
       useDefaultShell = true;
     };
@@ -90,7 +64,7 @@
     # Without this, a builder that's switched off stalls every build for the full TCP
     # connect timeout before Nix moves on.
     extraConfig = ''
-      Match user nix host thenixbeast.forge.local,steamdeck.forge.local
+      Match user nix host thenixbeast.forge.local
         ConnectTimeout 5
       Match all
     '';

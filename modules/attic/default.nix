@@ -9,6 +9,9 @@ let
 
   sockPath = "/run/post-build-hook.sock";
 
+  # The same server config atticd runs with, for minting the push token.
+  serverConfig = (pkgs.formats.toml { }).generate "server.toml" config.services.atticd.settings;
+
   # Points attic at the token systemd hands the daemon, so no `attic login` is needed.
   atticConfig = pkgs.writeTextDir "attic/config.toml" ''
     [servers.local]
@@ -35,8 +38,6 @@ in
         inherit (config.services.atticd) group;
         mode = "400";
       };
-      # Mint with: atticd-atticadm make-token --sub mini-nas --validity 99y --pull public --push public
-      "attic/push_token" = { };
     };
   };
 
@@ -70,37 +71,63 @@ in
     };
   };
 
-  # A queue rather than `attic watch-store`: watch-store never retries a failed upload
-  # (atticd is briefly unavailable after every restart, see the dotfiles README) and
-  # skips every `-source` path.
-  systemd.sockets.queued-build-hook = {
-    description = "Post-build-hook socket";
-    wantedBy = [ "sockets.target" ];
-    socketConfig = {
-      ListenStream = sockPath;
-      SocketUser = "root";
-      SocketMode = "0600";
+  systemd = {
+    # A queue rather than `attic watch-store`: watch-store never retries a failed upload
+    # (atticd is briefly unavailable after every restart, see the dotfiles README) and
+    # skips every `-source` path.
+    sockets.queued-build-hook = {
+      description = "Post-build-hook socket";
+      wantedBy = [ "sockets.target" ];
+      socketConfig = {
+        ListenStream = sockPath;
+        SocketUser = "root";
+        SocketMode = "0600";
+      };
     };
-  };
 
-  systemd.services.queued-build-hook = {
-    description = "Post-build-hook service";
-    wantedBy = [ "multi-user.target" ];
-    after = [
-      "network.target"
-      "queued-build-hook.socket"
-      "atticd.service"
-    ];
-    requires = [ "queued-build-hook.socket" ];
-    environment.XDG_CONFIG_HOME = "${atticConfig}";
-    serviceConfig = {
-      # Retries cover atticd's startup GC, which holds the database lock for minutes.
-      # Concurrency is capped because each finished derivation queues its own push, and
-      # a large build otherwise starts hundreds at once against atticd's SQLite.
-      ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retry-interval 30 --retries 20 --concurrency 2";
-      DynamicUser = true;
-      LoadCredential = "attic-push-token:${config.sops.secrets."attic/push_token".path}";
-      Restart = "on-failure";
+    # This host holds the key that signs tokens, so it mints its own push token at boot
+    # rather than keeping one in sops. Minting only signs; it doesn't touch the database.
+    services.attic-push-token = {
+      description = "Mint the token queued-build-hook pushes to Attic with";
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        DynamicUser = true;
+        EnvironmentFile = config.services.atticd.environmentFile;
+        RuntimeDirectory = "attic-push-token";
+        RuntimeDirectoryMode = "0700";
+        UMask = "0077";
+      };
+      script = ''
+        ${config.services.atticd.package}/bin/atticadm -f ${serverConfig} make-token \
+          --sub mini-nas --validity 10y --pull public --push public \
+          > "$RUNTIME_DIRECTORY/token"
+      '';
+    };
+
+    services.queued-build-hook = {
+      description = "Post-build-hook service";
+      wantedBy = [ "multi-user.target" ];
+      after = [
+        "network.target"
+        "queued-build-hook.socket"
+        "atticd.service"
+        "attic-push-token.service"
+      ];
+      requires = [
+        "queued-build-hook.socket"
+        "attic-push-token.service"
+      ];
+      environment.XDG_CONFIG_HOME = "${atticConfig}";
+      serviceConfig = {
+        # Retries cover atticd's startup GC, which holds the database lock for minutes.
+        # Concurrency is capped because each finished derivation queues its own push, and
+        # a large build otherwise starts hundreds at once against atticd's SQLite.
+        ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retry-interval 30 --retries 20 --concurrency 2";
+        DynamicUser = true;
+        LoadCredential = "attic-push-token:/run/attic-push-token/token";
+        Restart = "on-failure";
+      };
     };
   };
 

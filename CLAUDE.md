@@ -57,16 +57,16 @@ Each subdirectory is an imported NixOS module, some with their own `secrets.yaml
 
 - **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`). Also installs a
   `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
-  unprivileged user with the sops token `attic/push_token`. The dotfiles repo has a copy,
+  unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
   `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
   `nix.settings` in `configuration.nix`).
 - **`distributed_builders/`** — configures `thenixbeast` as a Nix remote build machine
   over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
   Keep the builder graph acyclic: a build that loops back to the host that sent it
   deadlocks (NixOS/nix#2029).
-- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones
-  `dartagan/dotfiles`, runs `nix flake update`, and builds the `iso`/`steamdeck`/`thenixbeast`
-  host configs to warm the cache.
+- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
+  `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
+  `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.
 - **`tailscale/`** — joins a self-hosted Tailscale/Headscale control server as an exit node,
   with a sops-templated autoconnect script and UDP-GRO NIC tuning.
 
