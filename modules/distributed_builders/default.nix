@@ -50,9 +50,11 @@
     users.nix = {
       isSystemUser = true;
       group = "nix";
-      # The key can only talk to the Nix daemon, which is all `ssh-ng` builds need. It
-      # stays a trusted user: builders must accept unsigned build inputs, and adopt the
-      # sender's `builders` setting (see above).
+      # The key can only talk to the Nix daemon, which is all `ssh-ng` builds need (Lix
+      # would need a wrapper: it runs a shell on the remote end). It stays a trusted user:
+      # builders must accept unsigned build inputs, and adopt the sender's `builders`
+      # setting (see above). That also lets it plant any store path, so whoever holds
+      # the key is effectively root here.
       openssh.authorizedKeys.keys = [
         "restrict,command=\"${config.nix.package}/bin/nix-daemon --stdio\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEufEieU/OuOiSA3jfmUo4ro9UQFC2tMkzL/NdRuP3Qh"
       ];
