@@ -5,9 +5,11 @@
   nix = {
     distributedBuilds = true;
     buildMachines = [
-      # speedFactor calculation: CPU GHz * CPU threads
-      #   mini-nas: 4.4 * 8 = 35, normalized to mini-nas: 1
-      #   thenixbeast: 5.6 * 24 = 134, normalized to mini-nas: 3.8 -> ~4
+      # speedFactor calculation: CPU boost GHz * CPU threads, normalized to mini-nas (the
+      # dotfiles repo uses the same numbers):
+      #   mini-nas     Intel Haswell          4.4 GHz *  8 =  35  -> 1
+      #   thenixbeast  Ryzen 9 9900X (Zen 5)  5.6 GHz * 24 = 134  -> 3.8 -> 4
+      #   steamdeck    Zen 2 APU              3.5 GHz *  8 =  28  -> 0.8 (not a builder)
       # Every host sets max-jobs * cores to twice its threads. A remote build runs with
       # this host's `cores` (8), so maxJobs gives it the same budget: 2 * 24 / 8.
       {

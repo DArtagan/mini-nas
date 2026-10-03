@@ -109,10 +109,9 @@
       options = "--delete-older-than 365d";
     };
 
-    # Builds give way to everything else this host does: guests, backups, and Attic,
-    # which shares these HDDs.
+    # Builds give way to guests, backups and Attic for CPU. Not for disk: OpenZFS ignores
+    # I/O scheduling classes (openzfs/zfs#14151), so daemonIOSchedClass would do nothing.
     daemonCPUSchedPolicy = "batch";
-    daemonIOSchedClass = "idle";
 
     settings = {
       # max-jobs * cores is twice the threads, as on every host (see

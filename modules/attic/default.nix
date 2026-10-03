@@ -36,8 +36,6 @@ in
     };
   };
 
-  environment.systemPackages = [ pkgs.attic-client ];
-
   services = {
     atticd = {
       enable = true;

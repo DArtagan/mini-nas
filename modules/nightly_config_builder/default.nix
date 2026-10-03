@@ -17,8 +17,9 @@ in
         set -euo pipefail
         export NIX_REMOTE=daemon
 
-        # Updates a repo's flake inputs, then builds the given hosts, so they're cached
-        # and the out-links keep the builds from being garbage collected.
+        # Updates a repo's flake inputs, then builds the given hosts, so they're cached.
+        # Each out-link is a garbage collector root, which keeps the latest build of each
+        # host, and everything it needs at runtime, in this store until the next night.
         build() {
           local repo=$1
           shift
