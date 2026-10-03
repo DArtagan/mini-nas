@@ -50,6 +50,9 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 - **`proxmox.nix`** sets up the `vmbr0` Proxmox network bridge over `systemd.network`.
 - **`main.tf`** manages Proxmox-level identity (the `admin` group, the `will@pam` user) via
   the `bpg/proxmox` provider — the layer NixOS can't declare.
+- **`pkgs/`** holds packages missing from nixpkgs, each in `pkgs/<name>/package.nix` and
+  pulled in with `pkgs.callPackage`. The dotfiles repo has the same convention, and a copy
+  of `queued-build-hook`; keep the two in step.
 
 ### modules/
 

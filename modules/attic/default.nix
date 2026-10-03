@@ -1,11 +1,6 @@
-{
-  config,
-  inputs,
-  pkgs,
-  ...
-}:
+{ config, pkgs, ... }:
 let
-  queued-build-hook = inputs.queued-build-hook.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  queued-build-hook = pkgs.callPackage ../../pkgs/queued-build-hook/package.nix { };
 
   sockPath = "/run/post-build-hook.sock";
 

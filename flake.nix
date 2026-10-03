@@ -13,10 +13,6 @@
     };
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
     proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
-    queued-build-hook = {
-      url = "github:nix-community/queued-build-hook";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,7 +36,6 @@
     {
       nixosConfigurations = {
         mini-nas = nixpkgs.lib.nixosSystem rec {
-          specialArgs = { inherit (self) inputs; };
           modules = [
             disko.nixosModules.disko
             nixos-facter-modules.nixosModules.facter
