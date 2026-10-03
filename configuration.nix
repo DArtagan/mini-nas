@@ -109,7 +109,14 @@
       options = "--delete-older-than 365d";
     };
 
+    # Builds give way to guests, backups and Attic for CPU.
+    daemonCPUSchedPolicy = "batch";
+
     settings = {
+      # max-jobs * cores is twice the threads, as on every host (see
+      # modules/distributed_builders). Builds sent to thenixbeast run with these `cores`.
+      cores = 8;
+      max-jobs = 2;
       auto-optimise-store = true;
       experimental-features = [
         "nix-command"
