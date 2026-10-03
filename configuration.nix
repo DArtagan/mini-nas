@@ -109,8 +109,7 @@
       options = "--delete-older-than 365d";
     };
 
-    # Builds give way to guests, backups and Attic for CPU. Not for disk: OpenZFS ignores
-    # I/O scheduling classes (openzfs/zfs#14151), so daemonIOSchedClass would do nothing.
+    # Builds give way to guests, backups and Attic for CPU.
     daemonCPUSchedPolicy = "batch";
 
     settings = {
