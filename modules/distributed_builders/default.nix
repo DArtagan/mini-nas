@@ -1,19 +1,22 @@
 { config, ... }:
 {
-  sops.secrets = {
-    "distributed_builders/ssh_private_key" = {
-      sopsFile = ./secrets.sops.yaml;
-    };
-    "distributed_builders/ssh_public_key" = {
-      sopsFile = ./secrets.sops.yaml;
-    };
-  };
+  sops.secrets."distributed_builders/ssh_private_key".sopsFile = ./secrets.sops.yaml;
 
   nix = {
     distributedBuilds = true;
-    buildMachines =
-      let
+    buildMachines = [
+      # speedFactor calculation: CPU boost GHz * CPU threads, normalized to mini-nas (the
+      # dotfiles repo uses the same numbers):
+      #   mini-nas     Intel Haswell          4.4 GHz *  8 =  35  -> 1
+      #   thenixbeast  Ryzen 9 9900X (Zen 5)  5.6 GHz * 24 = 134  -> 3.8 -> 4
+      #   steamdeck    Zen 2 APU              3.5 GHz *  8 =  28  -> 0.8 (not a builder)
+      # Every host sets max-jobs * cores to twice its threads. A remote build runs with
+      # this host's `cores` (8), so maxJobs gives it the same budget: 2 * 24 / 8.
+      {
         protocol = "ssh-ng";
+        hostName = "thenixbeast.forge.local";
+        maxJobs = 6;
+        speedFactor = 4;
         sshKey = config.sops.secrets."distributed_builders/ssh_private_key".path;
         sshUser = "nix";
         supportedFeatures = [
@@ -26,50 +29,33 @@
           "x86_64-linux"
           "i686-linux"
         ];
-      in
-      [
-        # speedFactor calculation: CPU GHz * CPU threads
-        #   mini-nas: 4.4 * 8 = 35, normalized to mini-nas: 1
-        #   thenixbeast: 5.6 * 24 = 134, normalized to mini-nas: 3.8 -> ~4
-        #   steamdeck: 3.5 * 8 = 28, normalized to mini-nas: 0.8 -> ~1
-        {
-          inherit
-            protocol
-            sshKey
-            sshUser
-            supportedFeatures
-            systems
-            ;
-          hostName = "thenixbeast.forge.local";
-          maxJobs = 12;
-          speedFactor = 4;
-        }
-        #{
-        #  inherit
-        #    protocol
-        #    sshKey
-        #    sshUser
-        #    supportedFeatures
-        #    systems
-        #    ;
-        #  hostName = "steamdeck.forge.local";
-        #  maxJobs = 4;
-        #  speedFactor = 1;
-        #}
-      ];
+      }
+    ];
     settings = {
+      # Read the machine list from a file only this host has. A builder adopts the
+      # `builders` value of a trusted client, so a build that steamdeck sends here reads
+      # /etc/nix/machines.steamdeck, finds nothing, and runs here rather than being
+      # forwarded again. Forwarding is what let builds loop back to the host that sent
+      # them, and deadlock on its locks (NixOS/nix#2029).
+      builders = "@/etc/nix/machines.${config.networking.hostName}";
       builders-use-substitutes = true;
       trusted-users = [ "nix" ];
     };
   };
 
+  environment.etc."nix/machines.${config.networking.hostName}".source =
+    config.environment.etc."nix/machines".source;
+
   users = {
     users.nix = {
       isSystemUser = true;
       group = "nix";
-      # TODO: lock this down further using something like: https://discourse.nixos.org/t/wrapper-to-restrict-builder-access-through-ssh-worth-upstreaming/25834/17
+      # The key can only talk to the Nix daemon, which is all `ssh-ng` builds need. It
+      # stays a trusted user: builders must accept unsigned build inputs, and adopt the
+      # sender's `builders` setting (see above). That also lets it plant any store path,
+      # so whoever holds the key is effectively root here.
       openssh.authorizedKeys.keys = [
-        "no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEufEieU/OuOiSA3jfmUo4ro9UQFC2tMkzL/NdRuP3Qh"
+        "restrict,command=\"${config.nix.package}/bin/nix-daemon --stdio\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEufEieU/OuOiSA3jfmUo4ro9UQFC2tMkzL/NdRuP3Qh"
       ];
       useDefaultShell = true;
     };
@@ -78,6 +64,13 @@
   };
 
   programs.ssh = {
+    # Without this, a builder that's switched off stalls every build for the full TCP
+    # connect timeout before Nix moves on.
+    extraConfig = ''
+      Match user nix host thenixbeast.forge.local
+        ConnectTimeout 5
+      Match all
+    '';
     knownHosts = {
       steamdeck = {
         extraHostNames = [

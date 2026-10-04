@@ -1,7 +1,7 @@
 # Taken from: https://github.com/basnijholt/dotfiles/blob/main/configs/nixos/hosts/nix-cache/auto-build.nix
 { pkgs, ... }:
 let
-  repository = "https://github.com/dartagan/dotfiles.git";
+  stateDir = "/var/lib/nightly_config_builder";
 in
 {
   systemd = {
@@ -17,35 +17,44 @@ in
         set -euo pipefail
         export NIX_REMOTE=daemon
 
-        DOTFILES="/var/lib/nightly_config_builder/dotfiles"
+        # Updates a repo's flake inputs, then builds the given hosts, so they're cached.
+        # Each out-link is a garbage collector root, which keeps the latest build of each
+        # host, and everything it needs at runtime, in this store until the next night.
+        build() {
+          local repo=$1
+          shift
+          local checkout="${stateDir}/$repo"
 
-        # Clone or update dotfiles
-        if [ ! -d "$DOTFILES" ]; then
-          git clone ${repository} "$DOTFILES"
-          cd "$DOTFILES"
-        else
-          cd "$DOTFILES"
-          git fetch origin
-          git reset --hard origin/main
-        fi
-
-        # Update flake inputs
-        nix flake update
-
-        # Get the commit ID of the nixpkgs input (locked in flake.lock)
-        COMMIT_ID=$(jq -r .nodes.nixpkgs.locked.rev flake.lock)
-
-        # Build all host configurations
-        for host in iso steamdeck thenixbeast; do
-          echo "Building $host..."
-          if nix build .#nixosConfigurations.$host.config.system.build.toplevel \
-            --out-link "/var/lib/nightly_config_builder/result-$host" \
-            --print-out-paths; then
-              echo "$COMMIT_ID" > "/var/lib/nightly_config_builder/$host.rev"
+          if [ ! -d "$checkout" ]; then
+            git clone "https://github.com/dartagan/$repo.git" "$checkout"
+            cd "$checkout"
           else
-              echo "Warning: $host build failed, continuing..."
+            cd "$checkout"
+            git fetch origin
+            git reset --hard origin/main
           fi
-        done
+
+          nix flake update
+
+          # Get the commit ID of the nixpkgs input (locked in flake.lock)
+          local commit_id
+          commit_id=$(jq -r .nodes.nixpkgs.locked.rev flake.lock)
+
+          for host in "$@"; do
+            echo "Building $host..."
+            if nix build ".#nixosConfigurations.$host.config.system.build.toplevel" \
+              --out-link "${stateDir}/result-$host" \
+              --print-out-paths; then
+                echo "$commit_id" > "${stateDir}/$host.rev"
+            else
+                echo "Warning: $host build failed, continuing..."
+            fi
+          done
+        }
+
+        # This host first: it's quick, and doesn't wait behind the CUDA builds.
+        build mini-nas mini-nas
+        build dotfiles iso steamdeck thenixbeast
 
         echo "All builds completed at $(date)"
       '';
@@ -67,7 +76,7 @@ in
 
     # Ensure build directory exists
     tmpfiles.rules = [
-      "d /var/lib/nightly_config_builder 0755 root root -"
+      "d ${stateDir} 0755 root root -"
     ];
   };
 }

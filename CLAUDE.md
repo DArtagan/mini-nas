@@ -50,19 +50,26 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 - **`proxmox.nix`** sets up the `vmbr0` Proxmox network bridge over `systemd.network`.
 - **`main.tf`** manages Proxmox-level identity (the `admin` group, the `will@pam` user) via
   the `bpg/proxmox` provider — the layer NixOS can't declare.
+- **`pkgs/`** holds packages missing from nixpkgs, each in `pkgs/<name>/package.nix` and
+  pulled in with `pkgs.callPackage`. The dotfiles repo has the same convention, and a copy
+  of `queued-build-hook`; keep the two in step.
 
 ### modules/
 
 Each subdirectory is an imported NixOS module, some with their own `secrets.sops.yaml`:
 
 - **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`). Also installs a
-  `queued-build-hook` that pushes locally-built store paths to the `public` cache. The host
-  substitutes from `http://localhost:8770/public` (see `nix.settings` in `configuration.nix`).
-- **`distributed_builders/`** — configures `thenixbeast`/`steamdeck` as Nix remote build
-  machines over `ssh-ng`, and the local `nix` build user that peers connect back through.
-- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones
-  `dartagan/dotfiles`, runs `nix flake update`, and builds the `iso`/`steamdeck`/`thenixbeast`
-  host configs to warm the cache.
+  `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
+  unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
+  `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
+  `nix.settings` in `configuration.nix`).
+- **`distributed_builders/`** — configures `thenixbeast` as a Nix remote build machine
+  over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
+  Keep the builder graph acyclic: a build that loops back to the host that sent it
+  deadlocks (NixOS/nix#2029).
+- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
+  `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
+  `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.
 - **`tailscale/`** — joins a self-hosted Tailscale/Headscale control server as an exit node,
   with a sops-templated autoconnect script and UDP-GRO NIC tuning.
 
