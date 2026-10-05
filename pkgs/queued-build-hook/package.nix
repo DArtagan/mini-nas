@@ -19,6 +19,14 @@ buildGoModule {
     hash = "sha256-alKEIVRdYSK6vSSlm3qmjp91C+s9LQApDbb+1yQ9PuU=";
   };
 
+  # Upstream queues at most 256 messages; past that, the post-build-hook blocks until a
+  # push finishes, and with it the build that ran the hook. A message is a few store
+  # paths, so a far deeper queue costs almost nothing.
+  postPatch = ''
+    substituteInPlace daemon.go \
+      --replace-fail 'make(chan *QueueMessage, 256)' 'make(chan *QueueMessage, 65536)'
+  '';
+
   vendorHash = null;
 
   meta = {
