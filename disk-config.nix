@@ -133,6 +133,14 @@
               mountpoint = "/var";
               type = "zfs_fs";
             };
+            # Smaller records than the pool's 128K, so that writing one 8K Postgres page
+            # doesn't rewrite a whole record. 16K rather than 8K, because on raidz1 an 8K
+            # record takes as many sectors again in parity and padding.
+            "rpool/postgresql" = {
+              mountpoint = "/var/lib/postgresql";
+              type = "zfs_fs";
+              options.recordsize = "16k";
+            };
             "rpool/home" = {
               mountpoint = "/home";
               type = "zfs_fs";

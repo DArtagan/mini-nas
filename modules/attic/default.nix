@@ -1,6 +1,32 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   queued-build-hook = pkgs.callPackage ../../pkgs/queued-build-hook/package.nix { };
+
+  # Over the local socket, where Postgres knows atticd by its Unix user.
+  postgresUrl = "postgresql:///atticd?host=/run/postgresql&user=atticd";
+
+  # Copies the SQLite database into Postgres; see the script for when to run it.
+  migrateToPostgres = pkgs.writeShellApplication {
+    name = "attic-migrate-to-postgres";
+    runtimeInputs = [
+      config.services.postgresql.package
+      pkgs.sqlite
+      pkgs.util-linux
+    ];
+    runtimeEnv = {
+      ATTICD = lib.getExe config.services.atticd.package;
+      ATTICD_CONFIG = (pkgs.formats.toml { }).generate "server.toml" (
+        lib.recursiveUpdate config.services.atticd.settings { database.url = postgresUrl; }
+      );
+      ATTICD_ENV = config.services.atticd.environmentFile;
+    };
+    text = builtins.readFile ./migrate-to-postgres.sh;
+  };
 
   sockPath = "/run/post-build-hook.sock";
 
@@ -36,6 +62,8 @@ in
     };
   };
 
+  environment.systemPackages = [ migrateToPostgres ];
+
   services = {
     atticd = {
       enable = true;
@@ -47,6 +75,25 @@ in
           interval = "12 hours";
           default-retention-period = "6 months";
         };
+      };
+    };
+
+    # atticd's database. On SQLite, sea-orm gives atticd a single connection, which one
+    # large upload holds long enough to time out every other request.
+    postgresql = {
+      enable = true;
+      package = pkgs.postgresql_18;
+      ensureDatabases = [ "atticd" ];
+      ensureUsers = [
+        {
+          name = "atticd";
+          ensureDBOwnership = true;
+        }
+      ];
+      settings = {
+        # Its own dataset, rpool/postgresql, has 16K records to suit Postgres's 8K pages.
+        # ZFS never writes a record in part, so Postgres needn't guard against torn pages.
+        full_page_writes = false;
       };
     };
   };
