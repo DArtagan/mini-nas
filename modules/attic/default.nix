@@ -71,6 +71,7 @@ in
       settings = {
         # TODO: set up a reverse-proxy, use HTTPS & nice names
         listen = "[::]:8770";
+        database.url = postgresUrl;
         garbage-collection = {
           interval = "12 hours";
           default-retention-period = "6 months";
@@ -160,9 +161,9 @@ in
       ];
       environment.XDG_CONFIG_HOME = "${atticConfig}";
       serviceConfig = {
-        # Retries cover atticd's startup GC, which holds the database lock for minutes.
+        # Retries cover atticd restarting.
         # Concurrency is capped because each finished derivation queues its own push, and
-        # a large build otherwise starts hundreds at once against atticd's SQLite.
+        # a large build otherwise starts hundreds at once against atticd's database.
         ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retry-interval 30 --retries 20 --concurrency 2";
         DynamicUser = true;
         LoadCredential = "attic-push-token:/run/attic-push-token/token";
