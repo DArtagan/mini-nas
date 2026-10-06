@@ -33,6 +33,8 @@ let
   '';
 in
 {
+  imports = [ ../postgresql ];
+
   sops = {
     secrets = {
       "attic_environment_file" = {
@@ -43,8 +45,7 @@ in
     };
   };
 
-  # From modules/postgresql.
-  my.postgresql.databases.atticd = { };
+  forge.postgresql.databases.atticd = { };
 
   services = {
     atticd = {
@@ -53,7 +54,7 @@ in
       settings = {
         # TODO: set up a reverse-proxy, use HTTPS & nice names
         listen = "[::]:8770";
-        database.url = config.my.postgresql.databases.atticd.url;
+        database.url = config.forge.postgresql.databases.atticd.url;
         garbage-collection = {
           interval = "12 hours";
           default-retention-period = "6 months";

@@ -69,8 +69,9 @@ Each subdirectory is an imported NixOS module, some with their own `secrets.yaml
   Keep the builder graph acyclic: a build that loops back to the host that sent it
   deadlocks (NixOS/nix#2029).
 - **`postgresql/`** — the host's Postgres server, on the `rpool/postgresql` dataset. A
-  module gets a database by declaring `my.postgresql.databases.<name> = { };`, and connects
-  with its `url`, as the Unix user `<name>`. The server runs only while some module does.
+  module gets a database by importing it and declaring
+  `forge.postgresql.databases.<name> = { };`, and connects with its `url`, as the Unix user
+  `<name>`. Not listed in `configuration.nix`: the modules that need it import it.
 - **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
   `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
   `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.

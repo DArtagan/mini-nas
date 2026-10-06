@@ -1,5 +1,5 @@
 # This host's Postgres server, shared by the services that declare a database under
-# my.postgresql.databases. The server runs only while at least one does.
+# forge.postgresql.databases. A module that needs one imports this module.
 {
   config,
   lib,
@@ -7,10 +7,10 @@
   ...
 }:
 let
-  cfg = config.my.postgresql;
+  cfg = config.forge.postgresql;
 in
 {
-  options.my.postgresql.databases = lib.mkOption {
+  options.forge.postgresql.databases = lib.mkOption {
     description = ''
       Databases to create, each owned by a role of the same name. A service connects
       over the local socket as the Unix user of that name, which Postgres trusts
@@ -35,7 +35,7 @@ in
     };
   };
 
-  config = lib.mkIf (cfg.databases != { }) {
+  config = {
     services.postgresql = {
       enable = true;
       package = pkgs.postgresql_18;
