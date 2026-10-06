@@ -48,7 +48,7 @@ terraform {
 
 
 data "sops_file" "tofu_secrets" {
-  source_file = "tofu_secrets.yaml"
+  source_file = "tofu_secrets.sops.yaml"
 }
 
 provider "proxmox" {

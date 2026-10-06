@@ -1,6 +1,6 @@
 { config, ... }:
 {
-  sops.secrets."distributed_builders/ssh_private_key".sopsFile = ./secrets.yaml;
+  sops.secrets."distributed_builders/ssh_private_key".sopsFile = ./secrets.sops.yaml;
 
   nix = {
     distributedBuilds = true;
