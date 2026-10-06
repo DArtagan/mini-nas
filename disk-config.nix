@@ -133,6 +133,14 @@
               mountpoint = "/var";
               type = "zfs_fs";
             };
+            # 32K records, as OpenZFS recommends for Postgres: small enough that writing
+            # one 8K page doesn't rewrite much more, large enough for lz4 to compress well.
+            # Below 16K, raidz1 spends as many sectors again on parity and padding.
+            "rpool/postgresql" = {
+              mountpoint = "/var/lib/postgresql";
+              type = "zfs_fs";
+              options.recordsize = "32k";
+            };
             "rpool/home" = {
               mountpoint = "/home";
               type = "zfs_fs";
