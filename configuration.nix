@@ -10,6 +10,7 @@
     ./disk-config.nix
     ./proxmox.nix
     ./modules/attic
+    ./modules/postgresql
     ./modules/distributed_builders
     ./modules/nightly_config_builder
     ./modules/tailscale

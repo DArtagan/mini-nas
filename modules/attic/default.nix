@@ -2,9 +2,6 @@
 let
   queued-build-hook = pkgs.callPackage ../../pkgs/queued-build-hook/package.nix { };
 
-  # Over the local socket, where Postgres knows atticd by its Unix user.
-  postgresUrl = "postgresql:///atticd?host=/run/postgresql&user=atticd";
-
   sockPath = "/run/post-build-hook.sock";
 
   # The same server config atticd runs with, for minting the push token.
@@ -46,6 +43,9 @@ in
     };
   };
 
+  # From modules/postgresql.
+  my.postgresql.databases.atticd = { };
+
   services = {
     atticd = {
       enable = true;
@@ -53,28 +53,11 @@ in
       settings = {
         # TODO: set up a reverse-proxy, use HTTPS & nice names
         listen = "[::]:8770";
-        database.url = postgresUrl;
+        database.url = config.my.postgresql.databases.atticd.url;
         garbage-collection = {
           interval = "12 hours";
           default-retention-period = "6 months";
         };
-      };
-    };
-
-    postgresql = {
-      enable = true;
-      package = pkgs.postgresql_18;
-      ensureDatabases = [ "atticd" ];
-      ensureUsers = [
-        {
-          name = "atticd";
-          ensureDBOwnership = true;
-        }
-      ];
-      settings = {
-        # Its own dataset, rpool/postgresql, has 16K records to suit Postgres's 8K pages.
-        # ZFS never writes a record in part, so Postgres needn't guard against torn pages.
-        full_page_writes = false;
       };
     };
   };

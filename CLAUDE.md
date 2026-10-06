@@ -59,7 +59,7 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 Each subdirectory is an imported NixOS module, some with their own `secrets.yaml`:
 
 - **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`), with its database
-  in Postgres, on the `rpool/postgresql` dataset. Also installs a
+  in Postgres (see `postgresql/`). Also installs a
   `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
   unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
   `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
@@ -68,6 +68,9 @@ Each subdirectory is an imported NixOS module, some with their own `secrets.yaml
   over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
   Keep the builder graph acyclic: a build that loops back to the host that sent it
   deadlocks (NixOS/nix#2029).
+- **`postgresql/`** — the host's Postgres server, on the `rpool/postgresql` dataset. A
+  module gets a database by declaring `my.postgresql.databases.<name> = { };`, and connects
+  with its `url`, as the Unix user `<name>`. The server runs only while some module does.
 - **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
   `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
   `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.
