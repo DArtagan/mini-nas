@@ -17,9 +17,16 @@ let
     token-file = "/run/credentials/queued-build-hook.service/attic-push-token"
   '';
 
-  # Run by the queued-build-hook daemon, which retries it on failure.
+  # Run by the queued-build-hook daemon. Retries itself rather than through the daemon's
+  # --retries, to cap the whole push at an hour: an attempt that atticd fails can take 15
+  # minutes, so a count of retries doesn't bound the time, and a successful push can
+  # take 25, so neither can a timeout on each attempt.
   pushHook = pkgs.writeShellScript "attic-push" ''
-    exec ${pkgs.attic-client}/bin/attic push local:public $OUT_PATHS
+    exec ${pkgs.coreutils}/bin/timeout 1h ${pkgs.bash}/bin/bash -c '
+      until ${pkgs.attic-client}/bin/attic push local:public $OUT_PATHS; do
+        sleep 60
+      done
+    '
   '';
 
   # Nix runs the post-build-hook synchronously, while still holding the build's output
@@ -54,8 +61,6 @@ in
       };
     };
 
-    # atticd's database. On SQLite, sea-orm gives atticd a single connection, which one
-    # large upload holds long enough to time out every other request.
     postgresql = {
       enable = true;
       package = pkgs.postgresql_18;
@@ -136,10 +141,11 @@ in
       ];
       environment.XDG_CONFIG_HOME = "${atticConfig}";
       serviceConfig = {
-        # Retries cover atticd restarting.
+        # pushHook does the retrying, so the daemon runs it once. Pushes it gives up on, or
+        # still queued when this service stops, are dropped; the queue only lives in memory.
         # Concurrency is capped because each finished derivation queues its own push, and
         # a large build otherwise starts hundreds at once against atticd's database.
-        ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retry-interval 30 --retries 20 --concurrency 2";
+        ExecStart = "${queued-build-hook}/bin/queued-build-hook daemon --hook ${pushHook} --retries 1 --concurrency 2";
         DynamicUser = true;
         LoadCredential = "attic-push-token:/run/attic-push-token/token";
         Restart = "on-failure";
