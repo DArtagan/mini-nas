@@ -19,6 +19,16 @@ buildGoModule {
     hash = "sha256-alKEIVRdYSK6vSSlm3qmjp91C+s9LQApDbb+1yQ9PuU=";
   };
 
+  # Upstream queues at most 256 messages; past that, the post-build-hook blocks until a
+  # push finishes, and with it the build that ran the hook. The channel's 65536 slots
+  # are pointers, 512 KiB allocated up front; each queued message, a .drv path and its
+  # output paths, adds about 250 bytes, so a full queue is about 16 MiB. A busy day of
+  # rebuilds on thenixbeast queues a few hundred.
+  postPatch = ''
+    substituteInPlace daemon.go \
+      --replace-fail 'make(chan *QueueMessage, 256)' 'make(chan *QueueMessage, 65536)'
+  '';
+
   vendorHash = null;
 
   meta = {
