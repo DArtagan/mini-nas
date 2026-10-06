@@ -45,8 +45,8 @@ in
         ensureDBOwnership = true;
       }) (lib.attrNames cfg.databases);
       settings = {
-        # Its own dataset, rpool/postgresql, has 16K records to suit Postgres's 8K pages.
-        # ZFS never writes a record in part, so Postgres needn't guard against torn pages.
+        # On ZFS (rpool/postgresql, 32K records), which never writes a record in part, an
+        # 8K page can't be torn, so Postgres needn't guard against it.
         full_page_writes = false;
       };
     };
