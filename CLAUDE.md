@@ -58,7 +58,8 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 
 Each subdirectory is an imported NixOS module, some with their own `secrets.yaml`:
 
-- **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`). Also installs a
+- **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`), with its database
+  in Postgres, on the `rpool/postgresql` dataset (16K records). Also installs a
   `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
   unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
   `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
