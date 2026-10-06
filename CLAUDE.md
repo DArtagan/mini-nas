@@ -31,6 +31,11 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 - **Proxmox users/groups:** `tofu apply` (state in `main.tf`, talks to the Proxmox API
   at `192.168.1.11:8006`). This is separate from the NixOS deploy.
 - **Custom install ISO:** `cd bootable_image && sh build.sh`.
+- **Larger changes go on a branch in a worktree under `.worktrees/`** (gitignored), then
+  merge to `main` through a GitHub PR:
+  `git worktree add -b <branch> .worktrees/<branch> main`. Deploying from the worktree puts
+  the host ahead of `main` until the PR merges, so a deploy from `main` or another branch in
+  the meantime reverts it.
 
 ## Architecture
 
@@ -105,3 +110,11 @@ adding its age key to `.sops.yaml` and re-encrypting (`sops updatekeys <file>`).
   `hddfancontrol` list in `configuration.nix` describe the same physical disks.
 - Nix `nixpkgs` tracks `nixos-unstable`; `system.autoUpgrade` with `allowReboot` is on, so
   the host updates itself.
+- **Hooks are shared across worktrees, but their config path isn't.** `.git/hooks/pre-commit`
+  hardcodes the `.pre-commit-config.yaml` of whichever checkout last entered devenv, so a
+  commit from another checkout runs prek against the wrong tree; a commit has come out empty
+  this way. Enter devenv in a worktree (`devenv shell -- true`) before committing there,
+  check `git show --stat HEAD` afterwards, and re-enter it in the main checkout when done.
+- **`docs/` describes the system as it is; `todos/` holds work not yet done.** A spec in
+  `todos/` carries the verified context and an opening prompt for one piece of work, and is
+  deleted once the work lands. See `todos/README.md`.

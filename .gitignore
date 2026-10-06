@@ -7,3 +7,6 @@ result
 .terraform/
 .terraform.tfstate.*
 terraform.tfstate*
+
+# git worktrees
+.worktrees/
