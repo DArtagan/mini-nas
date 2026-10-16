@@ -69,6 +69,11 @@ Each subdirectory is an imported NixOS module, some with their own `secrets.yaml
   unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
   `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
   `nix.settings` in `configuration.nix`).
+- **`claude_warmup/`** — a systemd timer (08:00, 13:02, 18:04, 23:06) that sends Claude a
+  throwaway Haiku prompt, so Will's 5-hour usage window resets on that grid instead of
+  mid-burst. Authenticates with a `claude setup-token` token (about a year's life) in its
+  `secrets.yaml`; when it expires, the unit fails. The reset time each ping anchors is in
+  `journalctl -u claude-warmup`.
 - **`distributed_builders/`** — configures `thenixbeast` as a Nix remote build machine
   over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
   Keep the builder graph acyclic: a build that loops back to the host that sent it
