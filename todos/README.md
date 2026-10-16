@@ -16,6 +16,10 @@ a way back. The snapshot also pins every chunk file attic's GC deletes, so the
 ~44 GB that GC is reclaiming is not actually freed until it goes. Waiting on a
 week of atticd running cleanly on Postgres.
 
+**[pushover-notifications.md](pushover-notifications.md) — notify on failures**
+Nothing tells Will when a unit fails. First on the list is `claude-warmup`,
+whose token expires after about a year.
+
 ## Writing a spec
 
 What makes these useful when opened cold, months later:
