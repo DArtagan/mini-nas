@@ -11,6 +11,7 @@
     ./proxmox.nix
     ./modules/attic
     ./modules/backup_monitoring
+    ./modules/claude_warmup
     ./modules/distributed_builders
     ./modules/nightly_config_builder
     ./modules/tailscale
@@ -124,6 +125,7 @@
     pkg:
     builtins.elem (lib.getName pkg) [
       "broadcom-sta"
+      "claude-code"
     ];
 
   nix = {
