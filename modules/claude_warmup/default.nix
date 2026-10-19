@@ -21,7 +21,7 @@ let
 in
 {
   sops.secrets.claude_oauth_token = {
-    sopsFile = ./secrets.yaml;
+    sopsFile = ./secrets.sops.yaml;
   };
 
   systemd = {
