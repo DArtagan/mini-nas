@@ -145,6 +145,16 @@
               mountpoint = "/home";
               type = "zfs_fs";
             };
+            # PBS #2's datastore, bind-mounted into the pbs-offsite container.
+            # atime is on against the pool's default: PBS's garbage collection
+            # marks a chunk in use by its atime, and its safety check refuses a
+            # datastore without it. No mountpoint here, so the dataset is mounted
+            # by the fileSystems entry in modules/pbs_offsite, as
+            # rpool/foreign-backups is from configuration.nix.
+            "rpool/pbs" = {
+              type = "zfs_fs";
+              options.atime = "on";
+            };
           };
         };
 

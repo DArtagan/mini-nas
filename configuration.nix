@@ -14,6 +14,7 @@
     ./modules/claude_warmup
     ./modules/distributed_builders
     ./modules/nightly_config_builder
+    ./modules/pbs_offsite
     ./modules/tailscale
   ];
 

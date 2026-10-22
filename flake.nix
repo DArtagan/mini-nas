@@ -17,6 +17,9 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # PBS #2's system, which modules/pbs_offsite runs. Its own nixpkgs, so the
+    # container is the system that flake evaluates and tests.
+    vulcanus-proxmox.url = "github:DArtagan/vulcanus-proxmox?dir=nixos";
   };
 
   outputs =
@@ -36,6 +39,7 @@
     {
       nixosConfigurations = {
         mini-nas = nixpkgs.lib.nixosSystem rec {
+          specialArgs = { inherit (self) inputs; };
           modules = [
             disko.nixosModules.disko
             nixos-facter-modules.nixosModules.facter
