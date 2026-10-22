@@ -1,3 +1,5 @@
+# Remote Nix builds: this host sends its builds to thenixbeast over ssh-ng, and is
+# itself a builder for steamdeck, through the local `nix` user.
 { config, ... }:
 {
   sops.secrets."distributed_builders/ssh_private_key".sopsFile = ./secrets.sops.yaml;

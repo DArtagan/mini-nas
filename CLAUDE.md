@@ -43,7 +43,7 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
   `configuration.nix` plus flake-module inputs: `disko` (partitioning), `nixos-facter`
   (hardware detection), `proxmox-nixos` (Proxmox VE), and `sops-nix` (secrets). It also
   defines the `deploy.nodes.mini-nas` deploy-rs target.
-- **`configuration.nix`** is the top-level host config and imports everything under
+- **`configuration.nix`** is the top-level host config and imports the modules under
   `modules/`. It wires up the ZFS boot loader (mirrored `/boot1`..`/boot5` across disks),
   sanoid/syncoid ZFS snapshot + replication (pulling `vulcanus` pools into
   `rpool/foreign-backups`), `hddfancontrol`, SSH, and `system.autoUpgrade`.
@@ -61,32 +61,10 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 
 ### modules/
 
-Each subdirectory is an imported NixOS module, some with their own `secrets.sops.yaml`:
-
-- **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`), with its database
-  in Postgres (see `postgresql/`). Also installs a
-  `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
-  unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
-  `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
-  `nix.settings` in `configuration.nix`).
-- **`claude_warmup/`** — a systemd timer (08:00, 13:02, 18:04, 23:06) that sends Claude a
-  throwaway Haiku prompt, so Will's 5-hour usage window resets on that grid instead of
-  mid-burst. Authenticates with a `claude setup-token` token (about a year's life) in its
-  `secrets.sops.yaml`; when it expires, the unit fails. The reset time each ping anchors is in
-  `journalctl -u claude-warmup`.
-- **`distributed_builders/`** — configures `thenixbeast` as a Nix remote build machine
-  over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
-  Keep the builder graph acyclic: a build that loops back to the host that sent it
-  deadlocks (NixOS/nix#2029).
-- **`postgresql/`** — the host's Postgres server, on the `rpool/postgresql` dataset. A
-  module gets a database by importing it and declaring
-  `forge.postgresql.databases.<name> = { };`, and connects with its `url`, as the Unix user
-  `<name>`. Not listed in `configuration.nix`: the modules that need it import it.
-- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
-  `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
-  `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.
-- **`tailscale/`** — joins a self-hosted Tailscale/Headscale control server as an exit node,
-  with a sops-templated autoconnect script and UDP-GRO NIC tuning.
+Each subdirectory is a NixOS module that `configuration.nix` imports, some with their own
+`secrets.sops.yaml`, and each opens with a comment saying what it is; read that rather
+than a list here, which drifts. The exception to the import rule is `postgresql/`, which
+the modules needing a database import themselves.
 
 ## Secrets (sops-nix)
 

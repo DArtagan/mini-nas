@@ -1,3 +1,4 @@
+# Joins the self-hosted Headscale tailnet as an exit node.
 { config, pkgs, ... }:
 {
   sops = {

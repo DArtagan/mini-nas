@@ -1,3 +1,6 @@
+# Builds this repo's and the dotfiles' host configurations nightly against updated
+# inputs, so the binary cache is warm before anyone deploys.
+#
 # Taken from: https://github.com/basnijholt/dotfiles/blob/main/configs/nixos/hosts/nix-cache/auto-build.nix
 { pkgs, ... }:
 let
