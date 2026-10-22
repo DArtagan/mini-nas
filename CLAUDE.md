@@ -4,11 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-NixOS + OpenTofu/Terraform configuration for `mini-nas`, a single mini-ITX home server
+NixOS configuration for `mini-nas`, a single mini-ITX home server
 that runs Proxmox VE on bare metal (IP `192.168.1.11`, Tailscale/LAN name
 `mini-nas.forge.local`). There is no application code here — everything is declarative
-infrastructure: the NixOS system, its ZFS disk layout, secrets, and the Proxmox-level
-users/groups managed out-of-band by Terraform.
+infrastructure: the NixOS system, its ZFS disk layout and its secrets.
 
 The host is part of a small fleet on the `*.forge.local` network: `mini-nas` (this
 machine), `thenixbeast`, `steamdeck` (Nix remote builders), and `vulcanus` (a foreign
@@ -17,19 +16,17 @@ host whose ZFS pools are pulled here as backups).
 ## Environment & commands
 
 Dev tooling comes from `devenv` (auto-loaded via `direnv` from `.envrc`). The dev shell
-provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
+provides `nix`, `sops`, `age` and `nixos-anywhere`.
 
 - **Format / lint:** git-hooks run on commit (`nixfmt`, `deadnix`, `statix`,
-  `flake-checker`, `shellcheck`, `tflint`, whitespace fixers). Run them ad-hoc with
+  `flake-checker`, `shellcheck`, whitespace fixers). Run them ad-hoc with
   `pre-commit run --all-files`. Keep Nix formatted with `nixfmt`.
 - **Build the system config:** `nix build .#nixosConfigurations.mini-nas.config.system.build.toplevel`
 - **Deploy an update to the running host:**
   `nh os switch .#nixosConfigurations.mini-nas --target-host "root@192.168.1.11"`
   (deploy-rs is also wired up as an alternative: `deploy .#mini-nas`).
 - **First-time bare-metal install** (see `README.md` for the full sequence): zero out
-  `facter.json`, then `nixos-anywhere --generate-hardware-config nixos-facter ./facter.json --flake .#nixosConfigurations.mini-nas --target-host root@192.168.1.11`, then `tofu apply`.
-- **Proxmox users/groups:** `tofu apply` (state in `main.tf`, talks to the Proxmox API
-  at `192.168.1.11:8006`). This is separate from the NixOS deploy.
+  `facter.json`, then `nixos-anywhere --generate-hardware-config nixos-facter ./facter.json --flake .#nixosConfigurations.mini-nas --target-host root@192.168.1.11`.
 - **Custom install ISO:** `cd bootable_image && sh build.sh`.
 - **Larger changes go on a branch in a worktree under `.worktrees/`** (gitignored), then
   merge to `main` through a GitHub PR:
@@ -43,7 +40,7 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
   `configuration.nix` plus flake-module inputs: `disko` (partitioning), `nixos-facter`
   (hardware detection), `proxmox-nixos` (Proxmox VE), and `sops-nix` (secrets). It also
   defines the `deploy.nodes.mini-nas` deploy-rs target.
-- **`configuration.nix`** is the top-level host config and imports everything under
+- **`configuration.nix`** is the top-level host config and imports the modules under
   `modules/`. It wires up the ZFS boot loader (mirrored `/boot1`..`/boot5` across disks),
   sanoid/syncoid ZFS snapshot + replication (pulling `vulcanus` pools into
   `rpool/foreign-backups`), `hddfancontrol`, SSH, and `system.autoUpgrade`.
@@ -53,40 +50,16 @@ provides `nix`, `sops`, `age`, `nixos-anywhere`, and `tofu`.
 - **`facter.json`** is machine-generated hardware config (from `nixos-facter`). Do not
   hand-edit; it is regenerated during install.
 - **`proxmox.nix`** sets up the `vmbr0` Proxmox network bridge over `systemd.network`.
-- **`main.tf`** manages Proxmox-level identity (the `admin` group, the `will@pam` user) via
-  the `bpg/proxmox` provider — the layer NixOS can't declare.
 - **`pkgs/`** holds packages missing from nixpkgs, each in `pkgs/<name>/package.nix` and
   pulled in with `pkgs.callPackage`. The dotfiles repo has the same convention, and a copy
   of `queued-build-hook`; keep the two in step.
 
 ### modules/
 
-Each subdirectory is an imported NixOS module, some with their own `secrets.sops.yaml`:
-
-- **`attic/`** — self-hosted Nix binary cache (`atticd` on `[::]:8770`), with its database
-  in Postgres (see `postgresql/`). Also installs a
-  `queued-build-hook` that pushes locally-built store paths to the `public` cache, as an
-  unprivileged user with a token `attic-push-token.service` mints at boot. The dotfiles repo has a copy,
-  `modules/attic-push`. The host substitutes from `http://localhost:8770/public` (see
-  `nix.settings` in `configuration.nix`).
-- **`claude_warmup/`** — a systemd timer (08:00, 13:02, 18:04, 23:06) that sends Claude a
-  throwaway Haiku prompt, so Will's 5-hour usage window resets on that grid instead of
-  mid-burst. Authenticates with a `claude setup-token` token (about a year's life) in its
-  `secrets.sops.yaml`; when it expires, the unit fails. The reset time each ping anchors is in
-  `journalctl -u claude-warmup`.
-- **`distributed_builders/`** — configures `thenixbeast` as a Nix remote build machine
-  over `ssh-ng`, and the local `nix` build user that `steamdeck` sends builds through.
-  Keep the builder graph acyclic: a build that loops back to the host that sent it
-  deadlocks (NixOS/nix#2029).
-- **`postgresql/`** — the host's Postgres server, on the `rpool/postgresql` dataset. A
-  module gets a database by importing it and declaring
-  `forge.postgresql.databases.<name> = { };`, and connects with its `url`, as the Unix user
-  `<name>`. Not listed in `configuration.nix`: the modules that need it import it.
-- **`nightly_config_builder/`** — a systemd timer (04:00 daily) that clones this repo and
-  `dartagan/dotfiles`, runs `nix flake update` in each, and builds `mini-nas`, then the
-  `iso`/`steamdeck`/`thenixbeast` host configs, to warm the cache.
-- **`tailscale/`** — joins a self-hosted Tailscale/Headscale control server as an exit node,
-  with a sops-templated autoconnect script and UDP-GRO NIC tuning.
+Each subdirectory is a NixOS module that `configuration.nix` imports, some with their own
+`secrets.sops.yaml`, and each opens with a comment saying what it is; read that rather
+than a list here, which drifts. The exception to the import rule is `postgresql/`, which
+the modules needing a database import themselves.
 
 ## Secrets (sops-nix)
 
@@ -96,8 +69,6 @@ age keys derived from SSH keys, declared in `.sops.yaml` (`mini-nas` host key pl
 group.
 
 - `secrets.sops.yaml` — host-wide (root/syncoid SSH keys).
-- `tofu_secrets.sops.yaml` — Proxmox API token + user password, read by Terraform via the sops
-  provider.
 - `modules/*/secrets.sops.yaml` — per-module (attic env file, tailscale login server, builder
   keys).
 

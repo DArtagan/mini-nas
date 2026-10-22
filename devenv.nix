@@ -13,7 +13,6 @@
 
   languages = {
     nix.enable = true;
-    opentofu.enable = true;
   };
 
   git-hooks.hooks = {
@@ -23,7 +22,6 @@
     nixfmt.enable = true;
     shellcheck.enable = true;
     statix.enable = true;
-    tflint.enable = true;
     trim-trailing-whitespace.enable = true;
   };
 

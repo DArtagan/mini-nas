@@ -1,3 +1,7 @@
+# A self-hosted Nix binary cache, which this host substitutes from (nix.settings in
+# configuration.nix), and a queued-build-hook that pushes every path built here to its
+# `public` cache. The dotfiles repo has a copy of the push side, modules/attic-push;
+# keep the two in step.
 { config, pkgs, ... }:
 let
   queued-build-hook = pkgs.callPackage ../../pkgs/queued-build-hook/package.nix { };

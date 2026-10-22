@@ -4,9 +4,6 @@
 bootable_image/result
 devenv.local.nix
 result
-.terraform/
-.terraform.tfstate.*
-terraform.tfstate*
 
 # git worktrees
 .worktrees/
