@@ -16,7 +16,9 @@
 let
   # Reads a check's URL from its sops secret and pings it. The optional second
   # argument is a path suffix -- "/fail" reports failure immediately rather
-  # than waiting for the check's period to lapse.
+  # than waiting for the check's period to lapse. Whatever arrives on stdin is
+  # sent as the ping's body, which healthchecks.io shows against the ping, so a
+  # failure's reason is readable there without logging in here.
   hcPing = pkgs.writeShellApplication {
     name = "hc-ping";
     runtimeInputs = [ pkgs.curl ];
@@ -38,8 +40,12 @@ let
           exit 1
           ;;
       esac
+      # A terminal is not a body: without this a hand run waits on stdin. curl
+      # reads @- in full before connecting, so --retry resends the same body.
+      body=()
+      [ -t 0 ] || body=(--data-binary @-)
       # -g because a URL is data, not a glob pattern.
-      curl -fsS -g -m 10 --retry 3 -o /dev/null "$url''${2:-}"
+      curl -fsS -g -m 10 --retry 3 -o /dev/null "''${body[@]}" "$url''${2:-}"
     '';
   };
 
@@ -128,7 +134,7 @@ let
 
       if [ -n "$problems" ]; then
         printf '%s' "$problems" >&2
-        hc-ping "$check" /fail
+        printf '%s' "$problems" | hc-ping "$check" /fail
         exit 1
       fi
       hc-ping "$check"
@@ -201,7 +207,7 @@ let
 
       if [ -n "$problems" ]; then
         printf '%s' "$problems" >&2
-        hc-ping "$check" /fail
+        printf '%s' "$problems" | hc-ping "$check" /fail
         exit 1
       fi
       hc-ping "$check"
