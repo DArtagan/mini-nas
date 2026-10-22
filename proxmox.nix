@@ -26,7 +26,7 @@ _: {
     };
 
     # Static, because the bridge has its own MAC and DHCP could lease it a new
-    # address; tofu, deploy-rs and ssh all use this one. The router keeps .11 out
+    # address; deploy-rs and ssh both use this one. The router keeps .11 out
     # of its pool.
     networks."10-lan-bridge" = {
       matchConfig.Name = "vmbr0";
