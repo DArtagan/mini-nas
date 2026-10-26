@@ -50,7 +50,7 @@ in
 
   systemd.services."container@pbs-offsite" = {
     unitConfig.RequiresMountsFor = [ datastore ];
-    # A limit, not an allocation; VM 107's figure until measured.
-    serviceConfig.MemoryMax = "2G";
+    # A limit, not an allocation: the 577 GiB first sync peaked at 423 MiB.
+    serviceConfig.MemoryMax = "1G";
   };
 }
