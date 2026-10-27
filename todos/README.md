@@ -20,6 +20,14 @@ week of atticd running cleanly on Postgres.
 Nothing tells Will when a unit fails. First on the list is `claude-warmup`,
 whose token expires after about a year.
 
+**[talos-vm.md](talos-vm.md) — stand up a single-node Talos VM**
+Kubernetes for home services, in a Proxmox VM rather than on the host, so that
+cluster-admin is not root on the backup server. Cilium, tuned so etcd on
+spinning disks takes a fraction of vulcanus's writes. Takes in replacing
+`system.autoUpgrade`, which has never worked, with a pipeline that verifies and
+commits, and the cluster's backups with a push to vulcanus. Fully decided; the
+upgrade pipeline can go first, as its own PR, once Pushover notifications exist.
+
 ## Writing a spec
 
 What makes these useful when opened cold, months later:
