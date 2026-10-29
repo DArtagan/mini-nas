@@ -293,9 +293,8 @@
           monthly = 24;
           yearly = 0;
         };
-        # Guest zvols and the PVE root. High churn, and rpool/data stops being
-        # replicated once PBS sync covers the guests, so depth here would be
-        # paid for and then thrown away.
+        # The PVE root and VM 107's OS disk. High churn, and PBS carries the
+        # guests' history, so depth here would be paid for and then thrown away.
         replica-shallow = {
           autosnap = false;
           autoprune = true;
@@ -359,10 +358,16 @@
           source = "mini-nas@vulcanus.forge.local:rpool/ROOT";
           target = "rpool/foreign-backups/vulcanus/ROOT";
         };
+        # VM 107's OS disk alone: it holds the primary PBS's /etc/proxmox-backup,
+        # which nothing else copies. PBS #2 carries every other guest image.
+        #
+        # The target's parent, rpool/foreign-backups/vulcanus/data, no longer
+        # receives, so it is set canmount=off by hand for the freshness check to
+        # treat it as a container.
         vulcanus-data = {
-          recursive = true;
-          source = "mini-nas@vulcanus.forge.local:rpool/data";
-          target = "rpool/foreign-backups/vulcanus/data";
+          recursive = false;
+          source = "mini-nas@vulcanus.forge.local:rpool/data/vm-107-disk-0";
+          target = "rpool/foreign-backups/vulcanus/data/vm-107-disk-0";
         };
         # The restic repository alone. Not rpool/backups: that is also the parent
         # of the 2.14 TiB borg tree, which would take this pool to ~90%.

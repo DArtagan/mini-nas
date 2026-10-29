@@ -192,7 +192,7 @@ let
 
       # A dataset that was never replicated has no stale snapshot to find, so
       # freshness alone cannot see it. Compare against the source.
-      for source_root in rpool/storage rpool/ROOT rpool/data rpool/backups/restic; do
+      for source_root in rpool/storage rpool/ROOT rpool/data/vm-107-disk-0 rpool/backups/restic; do
         if ! source_list="$(ssh -i "$ssh_key" -o BatchMode=yes -o ConnectTimeout=15 \
               "$source_host" "zfs list -H -o name -r $source_root" 2>&1)"; then
           note "could not list $source_root on the source: $source_list"
