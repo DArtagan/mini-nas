@@ -1,0 +1,96 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+NixOS configuration for `mini-nas`, a single mini-ITX home server
+that runs Proxmox VE on bare metal (IP `192.168.1.11`, Tailscale/LAN name
+`mini-nas.forge.local`). There is no application code here — everything is declarative
+infrastructure: the NixOS system, its ZFS disk layout and its secrets.
+
+The host is part of a small fleet on the `*.forge.local` network: `mini-nas` (this
+machine), `thenixbeast`, `steamdeck` (Nix remote builders), and `vulcanus` (a foreign
+host whose ZFS pools are pulled here as backups).
+
+## Environment & commands
+
+Dev tooling comes from `devenv` (auto-loaded via `direnv` from `.envrc`). The dev shell
+provides `nix`, `sops`, `age` and `nixos-anywhere`.
+
+- **Format / lint:** git-hooks run on commit (`nixfmt`, `deadnix`, `statix`,
+  `flake-checker`, `shellcheck`, whitespace fixers). Run them ad-hoc with
+  `pre-commit run --all-files`. Keep Nix formatted with `nixfmt`.
+- **Build the system config:** `nix build .#nixosConfigurations.mini-nas.config.system.build.toplevel`
+- **Deploy an update to the running host:**
+  `nh os switch .#nixosConfigurations.mini-nas --target-host "root@192.168.1.11"`
+  (deploy-rs is also wired up as an alternative: `deploy .#mini-nas`).
+- **First-time bare-metal install** (see `README.md` for the full sequence): zero out
+  `facter.json`, then `nixos-anywhere --generate-hardware-config nixos-facter ./facter.json --flake .#nixosConfigurations.mini-nas --target-host root@192.168.1.11`.
+- **Custom install ISO:** `cd bootable_image && sh build.sh`.
+- **Larger changes go on a branch in a worktree under `.worktrees/`** (gitignored), then
+  merge to `main` through a GitHub PR:
+  `git worktree add -b <branch> .worktrees/<branch> main`. Deploying from the worktree puts
+  the host ahead of `main` until the PR merges, so a deploy from `main` or another branch in
+  the meantime reverts it.
+
+## Architecture
+
+- **`flake.nix`** is the entrypoint. It assembles `nixosConfigurations.mini-nas` from
+  `configuration.nix` plus flake-module inputs: `disko` (partitioning), `nixos-facter`
+  (hardware detection), `proxmox-nixos` (Proxmox VE), and `sops-nix` (secrets). It also
+  defines the `deploy.nodes.mini-nas` deploy-rs target.
+- **`configuration.nix`** is the top-level host config and imports the modules under
+  `modules/`. It wires up the ZFS boot loader (mirrored `/boot1`..`/boot5` across disks),
+  sanoid/syncoid ZFS snapshot + replication (pulling `vulcanus` pools into
+  `rpool/foreign-backups`), `hddfancontrol`, SSH, and `system.autoUpgrade`.
+- **`disk-config.nix`** is the disko declaration of the ZFS topology: two raidz1 vdevs in
+  `rpool` (root/nix/var/home datasets) and one raidz1 vdev in `spool`. Disks are addressed
+  by `/dev/disk/by-id/ata-...` serial paths so they surface in `zpool status`.
+- **`facter.json`** is machine-generated hardware config (from `nixos-facter`). Do not
+  hand-edit; it is regenerated during install.
+- **`proxmox.nix`** sets up the `vmbr0` Proxmox network bridge over `systemd.network`.
+- **`pkgs/`** holds packages missing from nixpkgs, each in `pkgs/<name>/package.nix` and
+  pulled in with `pkgs.callPackage`. The dotfiles repo has the same convention, and a copy
+  of `queued-build-hook`; keep the two in step.
+
+### modules/
+
+Each subdirectory is a NixOS module that `configuration.nix` imports, some with their own
+`secrets.sops.yaml`, and each opens with a comment saying what it is; read that rather
+than a list here, which drifts. The exception to the import rule is `postgresql/`, which
+the modules needing a database import themselves.
+
+## Secrets (sops-nix)
+
+Secrets are `sops`-encrypted YAML, decrypted at activation by `sops-nix`. Recipients are
+age keys derived from SSH keys, declared in `.sops.yaml` (`mini-nas` host key plus
+`steamdeck`/`thenixbeast` admin keys). Rules there map each `secrets.sops.yaml` path to its key
+group.
+
+- `secrets.sops.yaml` — host-wide (root/syncoid SSH keys).
+- `modules/*/secrets.sops.yaml` — per-module (attic env file, tailscale login server, builder
+  keys).
+
+To add or edit a secret, edit the matching `*.yaml` through `sops`, and ensure the path is
+covered by a `creation_rules` entry in `.sops.yaml`. Adding a new decrypting machine means
+adding its age key to `.sops.yaml` and re-encrypting (`sops updatekeys <file>`).
+
+## Conventions & gotchas
+
+- **disko does not change a live system.** It only applies on the initial deploy. Changes to
+  partitions or ZFS datasets must be done by hand on the host, then reflected back into
+  `disk-config.nix` to keep it truthful (see the header comment there). New ZFS datasets also
+  need a matching `fileSystems` entry in `configuration.nix` to mount.
+- **Keep the disk lists in sync.** The drive list in `disk-config.nix` and the
+  `hddfancontrol` list in `configuration.nix` describe the same physical disks.
+- Nix `nixpkgs` tracks `nixos-unstable`; `system.autoUpgrade` with `allowReboot` is on, so
+  the host updates itself.
+- **Hooks are shared across worktrees, but their config path isn't.** `.git/hooks/pre-commit`
+  hardcodes the `.pre-commit-config.yaml` of whichever checkout last entered devenv, so a
+  commit from another checkout runs prek against the wrong tree; a commit has come out empty
+  this way. Enter devenv in a worktree (`devenv shell -- true`) before committing there,
+  check `git show --stat HEAD` afterwards, and re-enter it in the main checkout when done.
+- **`docs/` describes the system as it is; `todos/` holds work not yet done.** A spec in
+  `todos/` carries the verified context and an opening prompt for one piece of work, and is
+  deleted once the work lands. See `todos/README.md`.

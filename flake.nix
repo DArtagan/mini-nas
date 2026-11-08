@@ -13,14 +13,13 @@
     };
     nixos-facter-modules.url = "github:numtide/nixos-facter-modules";
     proxmox-nixos.url = "github:SaumonNet/proxmox-nixos";
-    queued-build-hook = {
-      url = "github:nix-community/queued-build-hook";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # PBS #2's system, which modules/pbs_offsite runs. Its own nixpkgs, so the
+    # container is the system that flake evaluates and tests.
+    vulcanus-proxmox.url = "github:DArtagan/vulcanus-proxmox?dir=nixos";
   };
 
   outputs =
@@ -31,7 +30,6 @@
       disko,
       nixos-facter-modules,
       proxmox-nixos,
-      queued-build-hook,
       sops-nix,
       ...
     }:
@@ -41,6 +39,7 @@
     {
       nixosConfigurations = {
         mini-nas = nixpkgs.lib.nixosSystem rec {
+          specialArgs = { inherit (self) inputs; };
           modules = [
             disko.nixosModules.disko
             nixos-facter-modules.nixosModules.facter
@@ -58,7 +57,6 @@
 
               nixpkgs.overlays = [
                 proxmox-nixos.overlays.${system}
-                queued-build-hook.overlays.default
               ];
             })
             {

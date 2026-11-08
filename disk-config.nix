@@ -12,7 +12,7 @@
           "/dev/disk/by-id/ata-ST4000DM005-2DP166_ZGY0B2RP"
         ]
         [
-          "/dev/disk/by-id/ata-ST3000DM001-1CH166_Z1F48TA8"
+          "/dev/disk/by-id/ata-OOS3000G_00038E07"
           "/dev/disk/by-id/ata-Hitachi_HUA723030ALA641_YHHT74WA"
           "/dev/disk/by-id/ata-TOSHIBA_DT01ACA300_Z2L4RUPGS"
         ]
@@ -133,9 +133,27 @@
               mountpoint = "/var";
               type = "zfs_fs";
             };
+            # 32K records, as OpenZFS recommends for Postgres: small enough that writing
+            # one 8K page doesn't rewrite much more, large enough for lz4 to compress well.
+            # Below 16K, raidz1 spends as many sectors again on parity and padding.
+            "rpool/postgresql" = {
+              mountpoint = "/var/lib/postgresql";
+              type = "zfs_fs";
+              options.recordsize = "32k";
+            };
             "rpool/home" = {
               mountpoint = "/home";
               type = "zfs_fs";
+            };
+            # PBS #2's datastore, bind-mounted into the pbs-offsite container.
+            # atime is on against the pool's default: PBS's garbage collection
+            # marks a chunk in use by its atime, and its safety check refuses a
+            # datastore without it. No mountpoint here, so the dataset is mounted
+            # by the fileSystems entry in modules/pbs_offsite, as
+            # rpool/foreign-backups is from configuration.nix.
+            "rpool/pbs" = {
+              type = "zfs_fs";
+              options.atime = "on";
             };
           };
         };
