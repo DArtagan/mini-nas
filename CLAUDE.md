@@ -86,11 +86,12 @@ adding its age key to `.sops.yaml` and re-encrypting (`sops updatekeys <file>`).
   `hddfancontrol` list in `configuration.nix` describe the same physical disks.
 - Nix `nixpkgs` tracks `nixos-unstable`; `system.autoUpgrade` with `allowReboot` is on, so
   the host updates itself.
-- **Hooks are shared across worktrees, but their config path isn't.** `.git/hooks/pre-commit`
-  hardcodes the `.pre-commit-config.yaml` of whichever checkout last entered devenv, so a
-  commit from another checkout runs prek against the wrong tree; a commit has come out empty
-  this way. Enter devenv in a worktree (`devenv shell -- true`) before committing there,
-  check `git show --stat HEAD` afterwards, and re-enter it in the main checkout when done.
+- **Enter devenv in a new worktree before committing there.** The git hooks are shared by
+  all worktrees and point prek at a relative `.pre-commit-config.yaml`, so each checkout
+  uses its own config. That file is gitignored, though, and devenv only writes it when the
+  shell is entered (`devenv shell -- true`, or via direnv); until then prek fails with
+  `config file not found`. `.envrc` takes its direnvrc from `devenv direnvrc`; an old pinned
+  one skipped devenv's tasks, so the config and hooks were never installed.
 - **`docs/` describes the system as it is; `todos/` holds work not yet done.** A spec in
   `todos/` carries the verified context and an opening prompt for one piece of work, and is
   deleted once the work lands. See `todos/README.md`.
