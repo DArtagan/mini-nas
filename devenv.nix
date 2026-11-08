@@ -16,7 +16,11 @@
   };
 
   git-hooks.hooks = {
-    end-of-file-fixer.enable = true;
+    end-of-file-fixer = {
+      enable = true;
+      # devenv writes its lock without a final newline; adding one would fight it.
+      excludes = [ "^devenv\\.lock$" ];
+    };
     deadnix.enable = true;
     flake-checker.enable = true;
     nixfmt.enable = true;
