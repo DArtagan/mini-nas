@@ -464,11 +464,11 @@
       },
       "locked": {
         "dir": "nixos",
-        "lastModified": 1793207817,
-        "narHash": "sha256-f5BAkGkLsbGs9ZWiKgAV99wduZxpuVe4qT9cAZgL0UM=",
+        "lastModified": 1794162040,
+        "narHash": "sha256-UpYpvKuaJmPKld0ExdPeW/scflj1khbJooRnzOLbEhs=",
         "owner": "DArtagan",
         "repo": "vulcanus-proxmox",
-        "rev": "f4df242e7420c48d2e5016326ed41564e51c2286",
+        "rev": "d13878868e7f6f53605c737eeed922a88463bb31",
         "type": "github"
       },
       "original": {
